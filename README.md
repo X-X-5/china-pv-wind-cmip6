@@ -145,6 +145,26 @@ products, audit summaries) are included — see
 Key summary tables live in `results/tables/` (cross-model `combined_*.csv`) and
 the final-analysis products in `results/figure_data/final_analysis/`.
 
+### Selected results
+
+Four representative figures from the full set of 14:
+
+![PV potential map](results/figures/paper_baseline/Fig03_pvpot_annual_route_B.png)
+
+*Baseline Route B: annual mean photovoltaic power potential over China.*
+
+![Wind power density map](results/figures/paper_baseline/Fig06_wpd_annual_route_B.png)
+
+*Baseline Route B: annual mean wind power density over China.*
+
+![Seasonal wind-solar complementarity](results/figures/paper_baseline/Fig09_seasonal_complementarity_route_B.png)
+
+*Baseline Route B: seasonal wind-solar complementarity over China.*
+
+![Annual energy, Route D vs. Route B](results/figures/optimization/Opt01_annual_energy_B_vs_D.png)
+
+*Annual energy: optimized Route D vs. baseline Route B.*
+
 ## 10. Current validation status
 
 | Check | Result |
@@ -179,15 +199,22 @@ See `docs/environment_notes.md`.
 ## 13. Citation & data sources
 
 If you use this software or its results, please cite it via the
-[`CITATION.cff`](CITATION.cff) file (author: **X-X-5**). Also cite the
-underlying study (the manuscript PDF is kept locally under `references/` and is
-**not** included in this repository) and the data providers:
+[`CITATION.cff`](CITATION.cff) file (author: **X-X-5**), and also cite the
+underlying study:
+
+> Fan, Y., Zhong, P.-A., Zhu, F., Mo, R., Wang, H., Wei, J., Zeng, Y.,
+> Wang, B., & Qian, X. (2025). Assessing the potential and complementary
+> characteristics of China’s solar and wind energy under climate change.
+> *Renewable Energy, 249*, 123213.
+> https://doi.org/10.1016/j.renene.2025.123213
+
+The manuscript PDF is kept locally under `references/` and is **not** included
+in this repository.
+
+Data providers:
 
 - **CMIP6** model output — obtained from the CEDA Archive (data.ceda.ac.uk).
 - **ERA5** reanalysis — Copernicus Climate Change Service / ECMWF.
-
-> TODO: insert the full bibliographic citation for the manuscript
-> (`references/papers/PV&Wind_power_New.pdf`).
 
 ## 14. Limitations
 
