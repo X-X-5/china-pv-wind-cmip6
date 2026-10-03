@@ -1,0 +1,11 @@
+CMIP6 DOWNLOAD INTEGRITY SUMMARY
+================================================================================
+Files checked: 948
+Models: 16
+Experiments: 4
+Variables: 3
+
+Status counts:
+  OK: 948
+
+Bad files: 0

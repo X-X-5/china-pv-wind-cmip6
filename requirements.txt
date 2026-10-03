@@ -1,0 +1,21 @@
+# pip reference (prefer conda: see environment.yml and docs/environment_notes.md)
+#
+# Direct dependencies, no version pins. Installing with conda is strongly
+# recommended; cartopy and cfgrib in particular are hard to satisfy via pip.
+
+numpy
+pandas
+xarray
+scipy
+netCDF4
+Shapely
+cartopy
+pyproj
+cftime
+matplotlib
+requests
+
+# cfgrib is GRIB-only (ERA5 preprocessing) and additionally requires the
+# ecCodes C library, which pip cannot install. Use conda (`eccodes`) or the
+# OS package manager instead. NetCDF-based production does not need it.
+# cfgrib

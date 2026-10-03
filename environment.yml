@@ -1,0 +1,46 @@
+# =====================================================================
+#  Conda environment for the China PV-wind CMIP6/ERA5 project
+#
+#  Create:   conda env create -f environment.yml
+#  Activate: conda activate pvwind
+#
+#  Direct dependencies only — no build numbers, no Windows build
+#  strings. Tested with Python 3.12 (conda-forge); see
+#  docs/environment_notes.md for the exact versions and the cfgrib
+#  caveat.
+# =====================================================================
+
+name: pvwind
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.12
+
+  # Core numeric / tabular / NetCDF
+  - numpy
+  - pandas
+  - xarray
+  - scipy
+  - netcdf4
+
+  # Geospatial / mapping
+  - shapely
+  - cartopy
+  - pyproj
+  - cftime
+
+  # Plotting
+  - matplotlib
+
+  # Downloads (public URLs; no credentials)
+  - requests
+
+  # Optional — ERA5/GRIB preprocessing only.
+  # cfgrib needs the ecCodes C library (the `eccodes` conda package).
+  # NetCDF-based production does not require either.
+  - cfgrib
+  - eccodes
+
+  - pip

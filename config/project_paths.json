@@ -1,0 +1,58 @@
+{
+  "project_root": ".",
+  "models": [
+    "ACCESS-CM2",
+    "ACCESS-ESM1-5",
+    "AWI-CM-1-1-MR",
+    "BCC-CSM2-MR",
+    "CAS-ESM2-0",
+    "CESM2-WACCM",
+    "CMCC-CM2-SR5",
+    "CMCC-ESM2",
+    "CanESM5",
+    "FGOALS-f3-L",
+    "FIO-ESM-2-0",
+    "IPSL-CM6A-LR",
+    "KACE-1-0-G",
+    "MPI-ESM1-2-HR",
+    "MPI-ESM1-2-LR",
+    "MRI-ESM2-0",
+    "TaiESM1"
+  ],
+  "scenarios": ["ssp126", "ssp245", "ssp585"],
+  "variables": ["tas", "rsds", "sfcWind"],
+  "paths": {
+    "config": "config",
+    "scripts": "scripts",
+    "notebooks": "notebooks",
+    "docs": "docs",
+
+    "data_raw_cmip6_downloaded": "data/raw/cmip6_downloaded",
+    "data_raw_era5_raw": "data/raw/era5_raw",
+    "data_raw_era5_2015_2025": "data/raw/era5_2015_2025",
+    "data_raw_era5_1981_2005": "data/raw/era5_1981_2005",
+    "data_raw_era5_archives": "data/raw/era5_archives",
+
+    "data_interim_cmip6_china_clipped": "data/interim/cmip6_china_clipped",
+    "data_interim_cmip6_processed_16models": "data/interim/cmip6_processed_16models",
+    "data_interim_era5_reference": "data/interim/era5_reference",
+    "data_interim_era5_on_gcm_grid": "data/interim/era5_on_gcm_grid",
+
+    "data_processed_bias_correction": "data/processed/bias_correction",
+    "data_processed_energy_metrics": "data/processed/energy_metrics",
+    "data_processed_validation": "data/processed/validation",
+    "data_boundaries": "data/boundaries",
+
+    "results_figure_data_multimodel_ensemble": "results/figure_data/multimodel_ensemble",
+    "results_figure_data_final_analysis": "results/figure_data/final_analysis",
+    "results_figures": "results/figures",
+    "results_figures_paper_baseline": "results/figures/paper_baseline",
+    "results_figures_optimization": "results/figures/optimization",
+    "results_tables": "results/tables",
+    "results_audits": "results/audits",
+    "results_manifests": "results/manifests",
+
+    "references_papers": "references/papers"
+  },
+  "china_shapefile": "data/boundaries/china_qc_boundary.shp"
+}

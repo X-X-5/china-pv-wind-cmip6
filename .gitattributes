@@ -1,0 +1,22 @@
+* text=auto
+
+*.py       text eol=lf
+*.md       text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+*.json     text eol=lf
+*.csv      text eol=lf
+*.cff      text eol=lf
+*.txt      text eol=lf
+*.ipynb    text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+LICENSE    text eol=lf
+
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.nc   binary
+*.grib binary
+*.grib2 binary
+*.zip  binary

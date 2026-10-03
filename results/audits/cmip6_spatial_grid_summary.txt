@@ -1,0 +1,193 @@
+CMIP6 SPATIAL GRID SUMMARY
+====================================================================================================
+ACCESS-CM2
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 144 x 192
+  Latitude: -89.375 to 89.375
+  Longitude: 0.9375 to 359.0625
+  Resolution: 1.25 x 1.875
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+ACCESS-ESM1-5
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 145 x 192
+  Latitude: -90.0 to 90.0
+  Longitude: 0.0 to 358.125
+  Resolution: 1.25 x 1.875
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+AWI-CM-1-1-MR
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 192 x 384
+  Latitude: -89.28422753251365 to 89.28422753251365
+  Longitude: 0.0 to 359.0625
+  Resolution: 0.9350586521707456 x 0.9375
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+BCC-CSM2-MR
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 160 x 320
+  Latitude: -89.14151942646112 to 89.14151942646112
+  Longitude: 0.0 to 358.875
+  Resolution: 1.121484495854304 x 1.125
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+CESM2-WACCM
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 192 x 288
+  Latitude: -90.0 to 90.0
+  Longitude: 0.0 to 358.75
+  Resolution: 0.9424083769633569 x 1.25
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+CMCC-CM2-SR5
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 192 x 288
+  Latitude: -90.0 to 90.0
+  Longitude: 0.0 to 358.75
+  Resolution: 0.9424083769633569 x 1.25
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+CMCC-ESM2
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 192 x 288
+  Latitude: -90.0 to 90.0
+  Longitude: 0.0 to 358.75
+  Resolution: 0.9424083769633569 x 1.25
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+CanESM5
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 64 x 128
+  Latitude: -87.86379883923273 to 87.86379883923273
+  Longitude: 0.0 to 357.1875
+  Resolution: 2.7905319657507377 x 2.8125
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+FGOALS-f3-L
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 180 x 288
+  Latitude: -89.5 to 89.5
+  Longitude: 0.625 to 359.375
+  Resolution: 1.0 x 1.25
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+FIO-ESM-2-0
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 192 x 288
+  Latitude: -90.0 to 90.0
+  Longitude: 0.0 to 358.75
+  Resolution: 0.9424083769633569 x 1.25
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+IPSL-CM6A-LR
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 143 x 144
+  Latitude: -90.0 to 90.0
+  Longitude: 0.0 to 357.5
+  Resolution: 1.2676048278808594 x 2.5
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+KACE-1-0-G
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 144 x 192
+  Latitude: -89.375 to 89.375
+  Longitude: 0.9375 to 359.0625
+  Resolution: 1.25 x 1.875
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+MPI-ESM1-2-HR
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 192 x 384
+  Latitude: -89.28422753251364 to 89.28422753251364
+  Longitude: 0.0 to 359.0625
+  Resolution: 0.9350586521707385 x 0.9375
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+MPI-ESM1-2-LR
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 96 x 192
+  Latitude: -88.57216851400727 to 88.57216851400727
+  Longitude: 0.0 to 358.125
+  Resolution: 1.8652352987505267 x 1.875
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+MRI-ESM2-0
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 160 x 320
+  Latitude: -89.14152 to 89.14152
+  Longitude: 0.0 to 358.875
+  Resolution: 1.1214800000000018 x 1.125
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1
+
+TaiESM1
+  Files: 12
+  Statuses: OK_1D
+  Coordinate names: lat, lon
+  Dimensions: 192 x 288
+  Latitude: -90.0 to 90.0
+  Longitude: 0.0 to 358.75
+  Resolution: 0.9424083769633569 x 1.25
+  Latitude direction: ascending
+  Longitude convention: 0_to_360
+  Unique grid signatures: 1

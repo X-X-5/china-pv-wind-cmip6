@@ -1,0 +1,8 @@
+CMIP6 TIME COVERAGE SUMMARY
+================================================================================
+Groups checked: 192
+OK groups: 192
+Bad groups: 0
+
+Status counts:
+  OK: 192

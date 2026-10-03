@@ -1,0 +1,16 @@
+CMIP6 PROCESSED DATA QC SUMMARY
+================================================================================
+Files checked: 192
+Models: 16
+OK files: 192
+Bad files: 0
+
+Status counts:
+  OK: 192
+
+Calendars:
+  360_day: 12
+  365_day: 72
+  gregorian: 12
+  noleap: 24
+  proleptic_gregorian: 72

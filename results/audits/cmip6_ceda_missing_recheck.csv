@@ -1,0 +1,6 @@
+﻿model,institution,activity,experiment,variant,table_id,variable,grid,version,status,file_count,matching_file_count,matching_files,url
+CAS-ESM2-0,CAS,CMIP,historical,r1i1p1f1,Amon,sfcWind,,,NO_GRID_FOUND,0,0,,https://data.ceda.ac.uk/badc/cmip6/data/CMIP6/CMIP/CAS/CAS-ESM2-0/historical/r1i1p1f1/Amon/sfcWind/
+CAS-ESM2-0,CAS,ScenarioMIP,ssp126,r1i1p1f1,Amon,sfcWind,,,VARIABLE_CONFIRMED_MISSING,0,0,,https://data.ceda.ac.uk/badc/cmip6/data/CMIP6/ScenarioMIP/CAS/CAS-ESM2-0/ssp126/r1i1p1f1/Amon/
+CAS-ESM2-0,CAS,ScenarioMIP,ssp245,r1i1p1f1,Amon,sfcWind,,,VARIABLE_CONFIRMED_MISSING,0,0,,https://data.ceda.ac.uk/badc/cmip6/data/CMIP6/ScenarioMIP/CAS/CAS-ESM2-0/ssp245/r1i1p1f1/Amon/
+CAS-ESM2-0,CAS,ScenarioMIP,ssp585,r1i1p1f1,Amon,sfcWind,,,VARIABLE_CONFIRMED_MISSING,0,0,,https://data.ceda.ac.uk/badc/cmip6/data/CMIP6/ScenarioMIP/CAS/CAS-ESM2-0/ssp585/r1i1p1f1/Amon/
+TaiESM1,AS-RCEC,ScenarioMIP,ssp126,r1i1p1f1,Amon,sfcWind,gn,v20201124,FOUND,1,1,sfcWind_Amon_TaiESM1_ssp126_r1i1p1f1_gn_201501-210012.nc,https://data.ceda.ac.uk/badc/cmip6/data/CMIP6/ScenarioMIP/AS-RCEC/TaiESM1/ssp126/r1i1p1f1/Amon/sfcWind/gn/v20201124/

@@ -1,0 +1,9 @@
+cff-version: "1.2.0"
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "China PV & Wind Power under CMIP6 Scenarios"
+authors:
+  - name: X-X-5
+version: "1.0.0"
+date-released: "2026-10-03"
+license: MIT

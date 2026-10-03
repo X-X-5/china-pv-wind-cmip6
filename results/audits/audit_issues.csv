@@ -1,0 +1,46 @@
+﻿severity,model,scenario,variable,check,detail
+WARNING,ACCESS-CM2,ssp126,tas,tail_trigger_percent,maximum 68.876101%
+WARNING,ACCESS-CM2,ssp245,tas,tail_trigger_percent,maximum 75.903186%
+WARNING,ACCESS-CM2,ssp585,tas,tail_trigger_percent,maximum 80.702412%
+WARNING,ACCESS-ESM1-5,ssp126,tas,tail_trigger_percent,maximum 59.936754%
+WARNING,ACCESS-ESM1-5,ssp245,tas,tail_trigger_percent,maximum 69.839134%
+WARNING,ACCESS-ESM1-5,ssp585,tas,tail_trigger_percent,maximum 77.500393%
+WARNING,AWI-CM-1-1-MR,ssp245,tas,tail_trigger_percent,maximum 60.208195%
+WARNING,AWI-CM-1-1-MR,ssp585,tas,tail_trigger_percent,maximum 72.014027%
+WARNING,BCC-CSM2-MR,ssp585,tas,tail_trigger_percent,maximum 64.345193%
+WARNING,CAS-ESM2-0,ssp126,tas,tail_trigger_percent,maximum 65.737295%
+WARNING,CAS-ESM2-0,ssp245,tas,tail_trigger_percent,maximum 67.762274%
+WARNING,CAS-ESM2-0,ssp585,tas,tail_trigger_percent,maximum 75.567614%
+WARNING,CESM2-WACCM,ssp126,tas,tail_trigger_percent,maximum 61.931417%
+WARNING,CESM2-WACCM,ssp245,tas,tail_trigger_percent,maximum 65.678518%
+WARNING,CESM2-WACCM,ssp585,tas,tail_trigger_percent,maximum 79.283219%
+WARNING,CMCC-CM2-SR5,ssp126,tas,tail_trigger_percent,maximum 54.721816%
+WARNING,CMCC-CM2-SR5,ssp245,tas,tail_trigger_percent,maximum 58.965977%
+WARNING,CMCC-CM2-SR5,ssp585,tas,tail_trigger_percent,maximum 71.350171%
+WARNING,CMCC-ESM2,ssp126,tas,tail_trigger_percent,maximum 53.777453%
+WARNING,CMCC-ESM2,ssp245,tas,tail_trigger_percent,maximum 60.170065%
+WARNING,CMCC-ESM2,ssp585,tas,tail_trigger_percent,maximum 65.872566%
+WARNING,CanESM5,ssp126,tas,tail_trigger_percent,maximum 67.342193%
+WARNING,CanESM5,ssp245,tas,tail_trigger_percent,maximum 76.481728%
+WARNING,CanESM5,ssp585,tas,tail_trigger_percent,maximum 82.830565%
+WARNING,FGOALS-f3-L,ssp585,tas,tail_trigger_percent,maximum 64.120134%
+WARNING,FIO-ESM-2-0,ssp245,tas,tail_trigger_percent,maximum 62.958872%
+WARNING,FIO-ESM-2-0,ssp585,tas,tail_trigger_percent,maximum 72.821447%
+WARNING,IPSL-CM6A-LR,ssp126,tas,tail_trigger_percent,maximum 61.290323%
+WARNING,IPSL-CM6A-LR,ssp245,tas,tail_trigger_percent,maximum 74.776884%
+WARNING,IPSL-CM6A-LR,ssp585,tas,tail_trigger_percent,maximum 79.607833%
+WARNING,KACE-1-0-G,ssp126,tas,tail_trigger_percent,maximum 67.096379%
+WARNING,KACE-1-0-G,ssp126,rsds,physical_range,qdm_improved high rsds maximum 537.939 W m-2
+WARNING,KACE-1-0-G,ssp245,tas,tail_trigger_percent,maximum 75.106606%
+WARNING,KACE-1-0-G,ssp245,rsds,physical_range,qdm_improved high rsds maximum 518.024 W m-2
+WARNING,KACE-1-0-G,ssp585,tas,tail_trigger_percent,maximum 81.567102%
+WARNING,KACE-1-0-G,ssp585,rsds,physical_range,qdm_improved high rsds maximum 525.065 W m-2
+WARNING,MPI-ESM1-2-HR,ssp245,tas,tail_trigger_percent,maximum 51.123293%
+WARNING,MPI-ESM1-2-HR,ssp585,tas,tail_trigger_percent,maximum 64.422296%
+WARNING,MPI-ESM1-2-LR,ssp585,tas,tail_trigger_percent,maximum 61.443836%
+WARNING,MRI-ESM2-0,ssp126,tas,tail_trigger_percent,maximum 53.070946%
+WARNING,MRI-ESM2-0,ssp245,tas,tail_trigger_percent,maximum 64.557389%
+WARNING,MRI-ESM2-0,ssp585,tas,tail_trigger_percent,maximum 75.887365%
+WARNING,TaiESM1,ssp126,tas,tail_trigger_percent,maximum 75.823208%
+WARNING,TaiESM1,ssp245,tas,tail_trigger_percent,maximum 74.107632%
+WARNING,TaiESM1,ssp585,tas,tail_trigger_percent,maximum 81.470978%

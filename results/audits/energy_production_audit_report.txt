@@ -1,0 +1,13 @@
+FORMAL ENERGY METRICS PRODUCTION AUDIT
+================================================================================
+Status                    : PASS
+Models                    : 17
+Scenarios                 : 3
+Combinations              : 51
+NetCDF files              : 272/272
+Failures                  : 0
+Audit warnings            : 0
+Transition |z| > 3 rows   : 1074
+Quick mode                : False
+
+A transition |z| > 3 row is a diagnostic warning, not an automatic failure.
