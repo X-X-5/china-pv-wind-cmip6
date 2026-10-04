@@ -55,8 +55,10 @@ try:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.colors import BoundaryNorm, ListedColormap, TwoSlopeNorm
+    from matplotlib.gridspec import GridSpec
     from matplotlib.lines import Line2D
-    from matplotlib.patches import Patch
+    from matplotlib.patches import Patch, PathPatch
+    from matplotlib.path import Path as MplPath
 except ImportError as error:  # pragma: no cover
     raise RuntimeError(
         "matplotlib is required. Install it in the pvwind environment."
@@ -66,9 +68,10 @@ try:
     import cartopy.crs as ccrs
     import cartopy.io.shapereader as shpreader
     from cartopy.mpl.ticker import LatitudeFormatter, LongitudeFormatter
+    from shapely.geometry.polygon import orient
 except ImportError as error:  # pragma: no cover
     raise RuntimeError(
-        "cartopy is required for the map figures. Install it in pvwind."
+        "cartopy and shapely are required for the map figures. Install them in pvwind."
     ) from error
 
 
@@ -117,7 +120,7 @@ COMPLEMENTARITY_LABELS = (
     "Very strong similarity",
 )
 METHOD_LABELS = {"paper_qm": "B: paper QM", "optimized": "D: optimized"}
-METHOD_COLORS = {"paper_qm": "#4C4C4C", "optimized": "#0072B2"}
+METHOD_COLORS = {"paper_qm": "#D55E00", "optimized": "#0072B2"}
 VARIABLE_LABELS = {
     "tas_c": "Near-surface air temperature (°C)",
     "rsds": "Surface solar radiation (W m⁻²)",
@@ -489,6 +492,64 @@ def configure_map_axis(axis, geometries, extent: tuple[float, float, float, floa
     axis.tick_params(length=2.5, pad=1.5)
 
 
+_CHINA_BOUNDARY_PATHS: dict[int, MplPath] = {}
+
+
+def _china_boundary_to_path(geometries) -> MplPath:
+    """Convert the China boundary Shapely geometry into one matplotlib Path.
+
+    The full Polygon/MultiPolygon is kept — mainland, islands, and any interior
+    holes — so the clip uses exactly the geometry drawn as the black outline.
+    Coordinates remain in lon/lat (PlateCarree data space).
+    """
+    rings: list[tuple[np.ndarray, list[int]]] = []
+
+    def add_polygon(polygon) -> None:
+        polygon = orient(polygon, sign=1.0)  # exterior CCW, holes CW
+        for ring in (polygon.exterior, *polygon.interiors):
+            coords = np.asarray(ring.coords)  # keep the repeated closing vertex
+            codes = [MplPath.MOVETO] + [MplPath.LINETO] * (len(coords) - 2) + [MplPath.CLOSEPOLY]
+            rings.append((coords, codes))
+
+    def add_geometry(geometry) -> None:
+        if geometry.is_empty:
+            return
+        if geometry.geom_type == "Polygon":
+            add_polygon(geometry)
+        elif geometry.geom_type == "MultiPolygon":
+            for polygon in geometry.geoms:
+                add_polygon(polygon)
+        elif geometry.geom_type == "GeometryCollection":
+            for part in geometry.geoms:
+                add_geometry(part)
+
+    for geometry in geometries:
+        add_geometry(geometry)
+
+    if not rings:
+        raise ValueError("China boundary shapefile contains no polygon geometry")
+    vertices = np.concatenate([coords for coords, _ in rings], axis=0)
+    codes = np.concatenate([code for _, code in rings])
+    return MplPath(vertices, codes)
+
+
+def clip_mesh_to_china(mappable, geometries, axis) -> None:
+    """Clip a map QuadMesh to the China boundary, preserving the 1° grid.
+
+    The center-point mask is unchanged (it still drives the area-weighted
+    statistics and ensemble); this only trims the drawn mesh to the true
+    coastline so grid colours stop spilling past the border.
+    """
+    key = id(geometries)
+    path = _CHINA_BOUNDARY_PATHS.get(key)
+    if path is None:
+        path = _china_boundary_to_path(geometries)
+        _CHINA_BOUNDARY_PATHS[key] = path
+    mappable.set_clip_path(
+        PathPatch(path, transform=axis.transData, facecolor="none", edgecolor="none")
+    )
+
+
 def masked(data: xr.DataArray, maps: xr.Dataset) -> xr.DataArray:
     return data.where(maps["china_mask"].astype(bool))
 
@@ -572,15 +633,27 @@ def plot_period_maps(
     panels, arrays = nine_period_panels(maps, variable, "paper_qm")
     low, high = sequential_limits(arrays)
     cmap = "YlOrRd" if variable == "pvpot" else "viridis"
-    figure, axes = plt.subplots(
+    figure = plt.figure(figsize=(11.4, 8.6))
+    grid = GridSpec(
         3,
-        3,
-        figsize=(11.4, 8.6),
-        subplot_kw={"projection": ccrs.PlateCarree()},
+        4,
+        figure=figure,
+        left=0.04,
+        right=0.90,
+        top=0.91,
+        bottom=0.06,
+        width_ratios=[1.0, 1.0, 1.0, 0.07],
+        wspace=0.13,
+        hspace=0.25,
     )
+    axes = [
+        [figure.add_subplot(grid[row, column], projection=ccrs.PlateCarree()) for column in range(3)]
+        for row in range(3)
+    ]
+    colorbar_axis = figure.add_subplot(grid[:, 3])
     mappable = None
     for (row, column, scenario, period), data in zip(panels, arrays):
-        axis = axes[row, column]
+        axis = axes[row][column]
         configure_map_axis(axis, geometries, extent)
         mappable = axis.pcolormesh(
             data.lon,
@@ -592,6 +665,7 @@ def plot_period_maps(
             vmax=high,
             shading="auto",
         )
+        clip_mesh_to_china(mappable, geometries, axis)
         index = column * len(SCENARIOS) + row
         axis.set_title(
             f"{panel_letter(index)} {SCENARIO_LABELS[scenario]} | {PERIOD_LABELS[period]}"
@@ -601,20 +675,18 @@ def plot_period_maps(
         if variable == "pvpot"
         else "log₁₀(WPD / W m⁻²)"
     )
-    figure.colorbar(
+    colorbar = figure.colorbar(
         mappable,
-        ax=axes.ravel().tolist(),
+        cax=colorbar_axis,
         orientation="vertical",
-        fraction=0.030,
-        pad=0.025,
         label=label,
         extend="both",
     )
+    colorbar.ax.tick_params(labelsize=8)
     figure.suptitle(
         f"Fig. {figure_number} reproduction — {variable.upper()} spatial distribution (route B)",
         y=0.99,
     )
-    figure.subplots_adjust(left=0.04, right=0.90, top=0.91, bottom=0.06, wspace=0.13, hspace=0.25)
     save_figure(
         figure,
         output / f"Fig{figure_number}_{variable}_period_maps_route_B",
@@ -654,15 +726,27 @@ def plot_change_maps(
             panels.append((row, column, scenario, period))
             arrays.append(data)
     limit = symmetric_limit(arrays)
-    figure, axes = plt.subplots(
+    figure = plt.figure(figsize=(8.8, 8.7))
+    grid = GridSpec(
         3,
-        2,
-        figsize=(8.8, 8.7),
-        subplot_kw={"projection": ccrs.PlateCarree()},
+        3,
+        figure=figure,
+        left=0.06,
+        right=0.90,
+        top=0.91,
+        bottom=0.06,
+        width_ratios=[1.0, 1.0, 0.07],
+        wspace=0.15,
+        hspace=0.26,
     )
+    axes = [
+        [figure.add_subplot(grid[row, column], projection=ccrs.PlateCarree()) for column in range(2)]
+        for row in range(3)
+    ]
+    colorbar_axis = figure.add_subplot(grid[:, 2])
     mappable = None
     for (row, column, scenario, period), data in zip(panels, arrays):
-        axis = axes[row, column]
+        axis = axes[row][column]
         configure_map_axis(axis, geometries, extent)
         mappable = axis.pcolormesh(
             data.lon,
@@ -673,23 +757,22 @@ def plot_change_maps(
             norm=TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit),
             shading="auto",
         )
+        clip_mesh_to_china(mappable, geometries, axis)
         index = column * len(SCENARIOS) + row
         axis.set_title(f"{panel_letter(index)} {SCENARIO_LABELS[scenario]} | {PERIOD_LABELS[period]}")
-    figure.colorbar(
+    colorbar = figure.colorbar(
         mappable,
-        ax=axes.ravel().tolist(),
+        cax=colorbar_axis,
         orientation="vertical",
-        fraction=0.040,
-        pad=0.030,
         label="Gridwise relative change (%)",
         extend="both",
     )
+    colorbar.ax.tick_params(labelsize=8)
     figure.suptitle(
         f"Fig. {figure_number} reproduction — {variable.upper()} change from 1994–2014 "
         "(route B; grid-cell percentage definition)",
         y=0.99,
     )
-    figure.subplots_adjust(left=0.06, right=0.88, top=0.91, bottom=0.06, wspace=0.15, hspace=0.26)
     save_figure(
         figure,
         output / f"Fig{figure_number}_{variable}_gridwise_change_route_B",
@@ -739,15 +822,27 @@ def plot_complementarity(
     panels, arrays = complementarity_panels(maps, definition, "paper_qm")
     cmap = ListedColormap(COMPLEMENTARITY_COLORS, name="paper_complementarity")
     norm = BoundaryNorm(np.arange(0.5, 9.5, 1.0), cmap.N)
-    figure, axes = plt.subplots(
+    figure = plt.figure(figsize=(13.4, 8.8))
+    grid = GridSpec(
         3,
-        3,
-        figsize=(11.8, 8.8),
-        subplot_kw={"projection": ccrs.PlateCarree()},
+        4,
+        figure=figure,
+        left=0.04,
+        right=0.82,
+        top=0.91,
+        bottom=0.06,
+        width_ratios=[1.0, 1.0, 1.0, 0.14],
+        wspace=0.13,
+        hspace=0.25,
     )
+    axes = [
+        [figure.add_subplot(grid[row, column], projection=ccrs.PlateCarree()) for column in range(3)]
+        for row in range(3)
+    ]
+    colorbar_axis = figure.add_subplot(grid[:, 3])
     mappable = None
     for (row, column, scenario, period), data in zip(panels, arrays):
-        axis = axes[row, column]
+        axis = axes[row][column]
         configure_map_axis(axis, geometries, extent)
         mappable = axis.pcolormesh(
             data.lon,
@@ -758,16 +853,15 @@ def plot_complementarity(
             norm=norm,
             shading="auto",
         )
+        clip_mesh_to_china(mappable, geometries, axis)
         index = column * len(SCENARIOS) + row
         axis.set_title(
             f"{panel_letter(index)} {SCENARIO_LABELS[scenario]} | {PERIOD_LABELS[period]}"
         )
     colorbar = figure.colorbar(
         mappable,
-        ax=axes.ravel().tolist(),
+        cax=colorbar_axis,
         orientation="vertical",
-        fraction=0.040,
-        pad=0.025,
         ticks=np.arange(1, 9),
     )
     colorbar.ax.set_yticklabels(COMPLEMENTARITY_LABELS)
@@ -780,7 +874,6 @@ def plot_complementarity(
         f"(route B; {samples})",
         y=0.99,
     )
-    figure.subplots_adjust(left=0.04, right=0.79, top=0.91, bottom=0.06, wspace=0.13, hspace=0.25)
     save_figure(
         figure,
         output / f"Fig{figure_number}_{scale}_complementarity_route_B",
@@ -806,8 +899,9 @@ def plot_annual_B_D(
                     data["p10"].to_numpy(dtype=float),
                     data["p90"].to_numpy(dtype=float),
                     color=METHOD_COLORS[method],
-                    alpha=0.10,
-                    linewidth=0,
+                    alpha=0.14,
+                    linewidth=0.6,
+                    edgecolor=METHOD_COLORS[method],
                 )
                 axis.plot(
                     years,
@@ -841,31 +935,37 @@ def plot_annual_B_D(
         ),
         Patch(
             facecolor=METHOD_COLORS["paper_qm"],
-            alpha=0.10,
+            alpha=0.14,
             label="Route B inter-model P10–P90",
         ),
         Patch(
             facecolor=METHOD_COLORS["optimized"],
-            alpha=0.10,
+            alpha=0.14,
             label="Route D inter-model P10–P90",
+        ),
+        Patch(
+            facecolor="#808080",
+            alpha=0.30,
+            label="Overlap of Route B and Route D P10–P90 bands",
         ),
     ]
     figure.suptitle("Optimization comparison — annual route B versus route D", y=0.995)
-    figure.tight_layout(rect=[0.0, 0.17, 1.0, 0.985])
+    figure.tight_layout(rect=[0.0, 0.20, 1.0, 0.985])
     figure.legend(
         handles=legend_handles,
-        ncol=2,
+        ncol=3,
         loc="upper center",
-        bbox_to_anchor=(0.5, 0.13),
+        bbox_to_anchor=(0.5, 0.14),
         frameon=False,
-        columnspacing=1.6,
+        columnspacing=1.4,
         handlelength=1.8,
         handletextpad=0.6,
     )
     figure.text(
         0.5,
         0.03,
-        "17-model ensemble: lines show the mean; shading shows the inter-model P10–P90 range.",
+        "Lines show the 17-model ensemble means; shading shows the inter-model P10–P90 ranges. "
+        "Grey shading indicates overlap between the two ranges.",
         ha="center",
         va="center",
         fontsize=8,
@@ -927,20 +1027,20 @@ def plot_method_difference_maps(
             norm=TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit),
             shading="auto",
         )
+        clip_mesh_to_china(mappable, geometries, axis)
         axis.set_title(
             f"{panel_letter(index)} {SCENARIO_LABELS[scenario]} | {PERIOD_LABELS[period]}"
         )
+    figure.subplots_adjust(left=0.05, right=0.99, top=0.88, bottom=0.22, wspace=0.10, hspace=0.22)
+    cax = figure.add_axes([0.25, 0.09, 0.50, 0.02])
     figure.colorbar(
         mappable,
-        ax=axes.ravel().tolist(),
+        cax=cax,
         orientation="horizontal",
-        fraction=0.055,
-        pad=0.08,
         label="Route D relative to route B (%)",
         extend="both",
     )
     figure.suptitle(f"Optimization difference — {variable.upper()} period mean (D − B)", y=0.99)
-    figure.subplots_adjust(left=0.05, right=0.99, top=0.88, bottom=0.15, wspace=0.10, hspace=0.22)
     save_figure(
         figure,
         output / f"Opt02_{variable}_period_relative_difference_D_minus_B",
@@ -985,7 +1085,6 @@ def plot_national_change(
                     width=width,
                     color=METHOD_COLORS[method],
                     alpha=0.86,
-                    label=METHOD_LABELS[method],
                 )
             axis.axhline(0.0, color="black", linewidth=0.7)
             axis.set_xticks(x, [SCENARIO_LABELS[s] for s in SCENARIOS])
@@ -993,12 +1092,25 @@ def plot_national_change(
             axis.grid(axis="y", alpha=0.22, linewidth=0.5)
             if column == 0:
                 axis.set_ylabel(f"{variable.upper()} national change (%)")
-    axes[0, 0].legend(frameon=False, ncol=2, loc="best")
+    legend_handles = [
+        Patch(facecolor=METHOD_COLORS["paper_qm"], alpha=0.86, label=METHOD_LABELS["paper_qm"]),
+        Patch(facecolor=METHOD_COLORS["optimized"], alpha=0.86, label=METHOD_LABELS["optimized"]),
+    ]
     figure.suptitle(
         "National changes — China area mean first, then percentage change (definition 2)",
         y=0.995,
     )
-    figure.tight_layout()
+    figure.tight_layout(rect=[0.0, 0.0, 1.0, 0.90])
+    figure.legend(
+        handles=legend_handles,
+        ncol=2,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.97),
+        frameon=False,
+        columnspacing=1.4,
+        handlelength=1.6,
+        handletextpad=0.6,
+    )
     save_figure(
         figure,
         output / "Opt03_national_change_B_vs_D_definition2",
@@ -1061,19 +1173,19 @@ def plot_complementarity_difference(
             norm=TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit),
             shading="auto",
         )
+        clip_mesh_to_china(mappable, geometries, axis)
         scale = "Seasonal" if definition == "seasonal_full" else "Monthly"
         axis.set_title(f"{panel_letter(index)} {scale} | {SCENARIO_LABELS[scenario]}")
+    figure.subplots_adjust(left=0.05, right=0.99, top=0.88, bottom=0.22, wspace=0.10, hspace=0.22)
+    cax = figure.add_axes([0.25, 0.09, 0.50, 0.02])
     figure.colorbar(
         mappable,
-        ax=axes.ravel().tolist(),
+        cax=cax,
         orientation="horizontal",
-        fraction=0.055,
-        pad=0.08,
         label="Spearman ρ difference (D − B)",
         extend="both",
     )
     figure.suptitle("Optimization difference — late-century complementarity (2080–2100)", y=0.99)
-    figure.subplots_adjust(left=0.05, right=0.99, top=0.88, bottom=0.15, wspace=0.10, hspace=0.22)
     save_figure(
         figure,
         output / "Opt04_complementarity_rho_D_minus_B_late_century",
