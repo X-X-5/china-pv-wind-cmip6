@@ -56,6 +56,7 @@ try:
     import matplotlib.pyplot as plt
     from matplotlib.colors import BoundaryNorm, ListedColormap, TwoSlopeNorm
     from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
 except ImportError as error:  # pragma: no cover
     raise RuntimeError(
         "matplotlib is required. Install it in the pvwind environment."
@@ -814,7 +815,6 @@ def plot_annual_B_D(
                     color=METHOD_COLORS[method],
                     linewidth=1.35,
                     linestyle="-" if method == "paper_qm" else "--",
-                    label=METHOD_LABELS[method],
                 )
             axis.set_title(f"{panel_letter(row * 3 + column)} {SCENARIO_LABELS[scenario]}")
             axis.grid(alpha=0.22, linewidth=0.5)
@@ -822,9 +822,54 @@ def plot_annual_B_D(
                 axis.set_ylabel(VARIABLE_LABELS[variable])
             if row == 1:
                 axis.set_xlabel("Year")
-    axes[0, 0].legend(frameon=False, loc="best")
+    legend_handles = [
+        Line2D(
+            [0],
+            [0],
+            color=METHOD_COLORS["paper_qm"],
+            linewidth=1.35,
+            linestyle="-",
+            label="Route B ensemble mean",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color=METHOD_COLORS["optimized"],
+            linewidth=1.35,
+            linestyle="--",
+            label="Route D ensemble mean",
+        ),
+        Patch(
+            facecolor=METHOD_COLORS["paper_qm"],
+            alpha=0.10,
+            label="Route B inter-model P10–P90",
+        ),
+        Patch(
+            facecolor=METHOD_COLORS["optimized"],
+            alpha=0.10,
+            label="Route D inter-model P10–P90",
+        ),
+    ]
     figure.suptitle("Optimization comparison — annual route B versus route D", y=0.995)
-    figure.tight_layout()
+    figure.tight_layout(rect=[0.0, 0.17, 1.0, 0.985])
+    figure.legend(
+        handles=legend_handles,
+        ncol=2,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.13),
+        frameon=False,
+        columnspacing=1.6,
+        handlelength=1.8,
+        handletextpad=0.6,
+    )
+    figure.text(
+        0.5,
+        0.03,
+        "17-model ensemble: lines show the mean; shading shows the inter-model P10–P90 range.",
+        ha="center",
+        va="center",
+        fontsize=8,
+    )
     save_figure(
         figure,
         output / "Opt01_annual_energy_B_vs_D",

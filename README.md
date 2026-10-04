@@ -163,7 +163,7 @@ Four representative figures from the full set of 14:
 
 ![Annual energy, Route D vs. Route B](results/figures/optimization/Opt01_annual_energy_B_vs_D.png)
 
-*Annual energy: optimized Route D vs. baseline Route B.*
+*Annual PV potential and wind power density under routes B and D. Lines show the equal-weight 17-model ensemble mean; shaded bands show the inter-model P10–P90 range.*
 
 ## 10. Current validation status
 
