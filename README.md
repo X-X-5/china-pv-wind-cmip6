@@ -15,7 +15,8 @@ reproduces the study's baseline route and an optimized variant.
 - **Reproduce** the baseline (paper) route of the PV/wind study.
 - **Optimize** the bias-correction chain with a QDM variant and evaluate the
   resulting change in PV potential, wind power density, and complementarity.
-- Produce 14 final figures (9 paper-baseline + 5 optimization).
+- Produce 23 final figures (9 paper-baseline Route B + 9 optimized-route Route D
+  + 5 method-comparison B−D).
 
 ## 2. Data
 
@@ -28,7 +29,12 @@ reproduces the study's baseline route and an optimized variant.
   radiation `rsds`, 10 m wind speed `sfcWind`.
 - **Reanalysis:** ERA5 (used as the bias-correction reference and for the
   validation window).
-- **Domain:** mainland China (clipped to a China polygon boundary).
+- **Domain:** China land area within the study domain (73–135°E, 15–54°N);
+  areas south of 15°N are outside the quantitative domain. Natural Earth
+  stores the relevant geometries as separate `CHN`/`TWN`/`HKG`/`MAC` records,
+  which are unioned solely to construct the quantitative analysis mask. This
+  analysis boundary is a scientific mask and **is not an official standard
+  map**.
 
 ## 3. Periods
 
@@ -57,7 +63,7 @@ reproduces the study's baseline route and an optimized variant.
    sensitivity and complementarity); `scripts/04_energy_metrics/`.
 5. **Figure data** — multimodel ensemble + final-analysis products;
    `scripts/05_figure_data/`.
-6. **Plotting** — the 14 final figures; `scripts/06_plotting/`.
+6. **Plotting** — the 23 final figures; `scripts/06_plotting/`.
 7. **Validation** — ERA5 2015–2025 holdout / validation;
    `scripts/07_validation/`.
 
@@ -84,7 +90,7 @@ python scripts/05_figure_data/build_multimodel_ensemble.py
 python scripts/05_figure_data/build_final_analysis_products.py --dry-run
 python scripts/05_figure_data/build_final_analysis_products.py
 
-# Stage 6 — plot the 14 figures
+# Stage 6 — plot the 23 figures
 python scripts/06_plotting/plot_final_figures.py --dry-run
 python scripts/06_plotting/plot_final_figures.py
 ```
@@ -132,14 +138,17 @@ products, audit summaries) are included — see
 
 ## 9. Main results
 
-14 final figures:
+23 final figures:
 
-- **Paper baseline (`results/figures/paper_baseline/`):** `Fig02`–`Fig10` —
-  climate factors, PV potential (annual/period-maps/gridwise change), wind power
-  density (annual/period-maps/gridwise change), and seasonal/monthly
+- **Paper baseline (`results/figures/paper_baseline/`):** `Fig02`–`Fig10`
+  (route B) — climate factors, PV potential (annual/period-maps/gridwise change),
+  wind power density (annual/period-maps/gridwise change), and seasonal/monthly
   complementarity.
-- **Optimization (`results/figures/optimization/`):** `Opt01`–`Opt04` — annual
-  energy B-vs-D, PV/WPD period relative difference (D−B), national change
+- **Optimized route (`results/figures/optimized_route/`):** `Fig02`–`Fig10`
+  (route D) — the same nine layouts drawn from the optimized method, with
+  colorbar/y-limits shared with the paper-baseline figures (joint B+D scales).
+- **Method comparison (`results/figures/method_comparison/`):** `Opt01`–`Opt04` —
+  annual energy B-vs-D, PV/WPD period relative difference (D−B), national change
   (definition 2), and late-century complementarity ρ (D−B).
 
 Key summary tables live in `results/tables/` (cross-model `combined_*.csv`) and
@@ -147,7 +156,7 @@ the final-analysis products in `results/figure_data/final_analysis/`.
 
 ### Selected results
 
-Four representative figures from the full set of 14:
+Four representative figures from the full set of 23:
 
 ![PV potential map](results/figures/paper_baseline/Fig03_pvpot_annual_route_B.png)
 
@@ -161,7 +170,7 @@ Four representative figures from the full set of 14:
 
 *Baseline Route B: seasonal wind-solar complementarity over China.*
 
-![Annual energy, Route D vs. Route B](results/figures/optimization/Opt01_annual_energy_B_vs_D.png)
+![Annual energy, Route D vs. Route B](results/figures/method_comparison/Opt01_annual_energy_B_vs_D.png)
 
 *Annual PV potential and wind power density under routes B and D. Lines show the equal-weight 17-model ensemble mean; shaded bands show the inter-model P10–P90 range.*
 
@@ -171,7 +180,7 @@ Four representative figures from the full set of 14:
 |---|---|
 | Bias-corrected NetCDF | **153/153** present |
 | Energy-metric NetCDF | **272/272** present |
-| Final figures | **14** (9 paper + 5 optimization) |
+| Final figures | **23** (9 paper-B + 9 optimized-D + 5 comparison) |
 | Bias-correction audit | **PASS** (153/153, 51/51 manifests) |
 | Energy-metrics audit | **PASS** (272/272, 0 failures) |
 | Downstream dry-runs | **PASS** (all stages) |
@@ -223,6 +232,10 @@ Data providers:
   and aggregation choices; results should be interpreted as a multimodel
   assessment, **not** a strictly pixel-perfect reproduction of any single run.
 - Raw data redistribution is out of scope (see §8).
+- The quantitative boundary is a scientific mask (Natural Earth 10m, `CHN` +
+  `TWN` + `HKG` + `MAC`), not an official standard map; figures intended for
+  official publication should use the standard-map service with an approval
+  number and the required South China Sea inset.
 
 ## 15. License
 

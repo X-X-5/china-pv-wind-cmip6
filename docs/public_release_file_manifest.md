@@ -52,12 +52,13 @@ placed on the deny list (kept local-only, not modified in place).
 | `docs/public_release_file_manifest.md` | — | no | this manifest |
 | `docs/environment_notes.md` | — | no | environment guidance |
 
-### Figures (14 PNG)
+### Figures (23 PNG)
 
 | Path | Size | Regenerable | Reason |
 |---|---|---|---|
-| `results/figures/paper_baseline/Fig02`–`Fig10` (9 PNG) | ~9.2 MiB | yes (`plot_final_figures.py`) | paper-baseline figures |
-| `results/figures/optimization/Opt01`–`Opt04` (5 PNG) | ~2.7 MiB | yes (`plot_final_figures.py`) | optimization figures |
+| `results/figures/paper_baseline/Fig02`–`Fig10` (9 PNG) | ~9.2 MiB | yes (`plot_final_figures.py`) | paper-baseline figures (route B) |
+| `results/figures/optimized_route/Fig02`–`Fig10` (9 PNG) | ~9 MiB | yes (`plot_final_figures.py`) | optimized-route figures (route D) |
+| `results/figures/method_comparison/Opt01`–`Opt04` (5 PNG) | ~2.7 MiB | yes (`plot_final_figures.py`) | B-vs-D comparison figures |
 
 ### Cross-model summary tables (6 of 7)
 
@@ -70,7 +71,7 @@ placed on the deny list (kept local-only, not modified in place).
 | `results/tables/combined_historical_baseline_complementarity_summary.csv` | 0.04 MB | yes | baseline complementarity |
 | `results/tables/combined_hub_height_sensitivity.csv` | 0.22 MB | yes | hub-height sensitivity |
 
-### Final-analysis products (needed to plot the 14 figures)
+### Final-analysis products (needed to plot the 23 figures)
 
 | Path | Size | Regenerable | Reason |
 |---|---|---|---|
@@ -108,7 +109,7 @@ placed on the deny list (kept local-only, not modified in place).
 | `archive/**` | 12.6 GiB | historical/legacy bulk | n/a |
 | `references/**` | 15.8 MB | paper PDF, copyright | n/a |
 | `*.grib`, `*.grib2`, `*.idx` | — | ERA5 raw + sidecars | yes |
-| `results/figures/**/*.zip` | 10.9 MB | figure bundle; 14 PNGs tracked individually | yes |
+| `results/figures/**/*.zip` | 10.9 MB | figure bundle; 23 PNGs tracked individually | yes |
 | `results/tables/combined_historical_future_transition.csv` | 17.2 MB | first-version large table (excluded by release plan) | yes |
 | `results/figure_data/multimodel_ensemble/**` | 7.8 MB | intermediate maps/CSVs | yes |
 | `results/figure_data/final_analysis/final_analysis_manifest.json` | 2.3 KB | embeds local path | yes |
@@ -134,7 +135,7 @@ placed on the deny list (kept local-only, not modified in place).
 
 | Result | Produced by |
 |---|---|
-| 14 PNG figures | `scripts/06_plotting/plot_final_figures.py` |
+| 23 PNG figures | `scripts/06_plotting/plot_final_figures.py` |
 | 6 combined tables | `scripts/04_energy_metrics/compute_energy_metrics_batch.py` |
 | final-analysis products | `scripts/05_figure_data/build_final_analysis_products.py` |
 | multimodel-ensemble maps/CSVs | `scripts/05_figure_data/build_multimodel_ensemble.py` |
@@ -144,7 +145,7 @@ placed on the deny list (kept local-only, not modified in place).
 ## Estimated repository footprint
 
 - **Tracked files: ~95** (45 scripts + 1 config + 1 notebook + 2 docs + 4 root
-  files + 14 PNGs + 6 tables + 5 final-analysis products + 17 audit summaries).
+  files + 23 PNGs + 6 tables + 5 final-analysis products + 17 audit summaries).
 - **Tracked size: ~26 MiB**, with no single tracked file above 10 MiB.
 - Excluded: 73 GiB of data/archive and all machine-path-tainted regenerable
   results.

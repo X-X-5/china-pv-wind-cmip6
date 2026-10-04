@@ -121,6 +121,8 @@ COMPLEMENTARITY_LABELS = (
 )
 METHOD_LABELS = {"paper_qm": "B: paper QM", "optimized": "D: optimized"}
 METHOD_COLORS = {"paper_qm": "#D55E00", "optimized": "#0072B2"}
+ROUTE_TAG = {"paper_qm": "route_B", "optimized": "route_D"}
+ROUTE_NAME = {"paper_qm": "B", "optimized": "D"}
 VARIABLE_LABELS = {
     "tas_c": "Near-surface air temperature (°C)",
     "rsds": "Surface solar radiation (W m⁻²)",
@@ -359,6 +361,8 @@ def plot_paper_climate_annual(
     formats: list[str],
     dpi: int,
     outputs: list,
+    method: str,
+    ylims: dict[str, tuple[float, float]],
 ) -> None:
     variables = ("rsds", "tas_c", "sfcWind_10m")
     model_colors = plt.get_cmap("tab20")(np.linspace(0.0, 1.0, 17))
@@ -366,9 +370,9 @@ def plot_paper_climate_annual(
     for row, scenario in enumerate(SCENARIOS):
         for column, variable in enumerate(variables):
             axis = axes[row, column]
-            data = annual_subset(annual, variable, "paper_qm", scenario)
+            data = annual_subset(annual, variable, method, scenario)
             members = annual_model_subset(
-                annual_model, variable, "paper_qm", scenario
+                annual_model, variable, method, scenario
             )
             years = data["year"].to_numpy(dtype=float)
             for color, (_, member) in zip(
@@ -421,21 +425,24 @@ def plot_paper_climate_annual(
             )
             axis.set_ylabel(VARIABLE_LABELS[variable])
             axis.grid(alpha=0.20, linewidth=0.5)
+            axis.set_ylim(ylims[variable])
             if row == 2:
                 axis.set_xlabel("Year")
     axes[0, 0].legend(ncol=3, loc="best", frameon=False)
     figure.suptitle(
-        "Fig. 2 reproduction — projected climate factors from 17 GCMs (route B)",
+        f"Fig. 2 reproduction — projected climate factors from 17 GCMs "
+        f"(route {ROUTE_NAME[method]})",
         y=0.995,
     )
     figure.tight_layout()
     save_figure(
         figure,
-        output / "Fig02_climate_factors_annual_route_B",
+        output / f"Fig02_climate_factors_annual_{ROUTE_TAG[method]}",
         formats,
         dpi,
         outputs,
-        "Paper Fig. 2 reproduction: 17 member lines plus maximum, minimum, and mean, route B.",
+        f"Paper Fig. 2 reproduction: 17 member lines plus maximum, minimum, and mean, "
+        f"route {ROUTE_NAME[method]}.",
     )
 
 
@@ -447,10 +454,12 @@ def plot_paper_energy_annual(
     formats: list[str],
     dpi: int,
     outputs: list,
+    method: str,
+    ylim: tuple[float, float],
 ) -> None:
     figure, axis = plt.subplots(figsize=(9.2, 4.3))
     for scenario in SCENARIOS:
-        data = annual_subset(annual, variable, "paper_qm", scenario)
+        data = annual_subset(annual, variable, method, scenario)
         years = data["year"].to_numpy(dtype=float)
         axis.plot(
             years,
@@ -461,17 +470,22 @@ def plot_paper_energy_annual(
         )
     axis.set_xlabel("Year")
     axis.set_ylabel(VARIABLE_LABELS[variable])
+    axis.set_ylim(ylim)
     axis.grid(alpha=0.22, linewidth=0.5)
     axis.legend(ncol=3, loc="best", frameon=False)
-    axis.set_title(f"Fig. {figure_number} reproduction — annual {variable.upper()} (route B)")
+    axis.set_title(
+        f"Fig. {figure_number} reproduction — annual {variable.upper()} "
+        f"(route {ROUTE_NAME[method]})"
+    )
     figure.tight_layout()
     save_figure(
         figure,
-        output / f"Fig{figure_number}_{variable}_annual_route_B",
+        output / f"Fig{figure_number}_{variable}_annual_{ROUTE_TAG[method]}",
         formats,
         dpi,
         outputs,
-        f"Paper Fig. {figure_number} reproduction: route-B annual {variable} ensemble mean.",
+        f"Paper Fig. {figure_number} reproduction: route-{ROUTE_NAME[method]} "
+        f"annual {variable} ensemble mean.",
     )
 
 
@@ -629,9 +643,11 @@ def plot_period_maps(
     formats: list[str],
     dpi: int,
     outputs: list,
+    method: str,
+    low: float,
+    high: float,
 ) -> None:
-    panels, arrays = nine_period_panels(maps, variable, "paper_qm")
-    low, high = sequential_limits(arrays)
+    panels, arrays = nine_period_panels(maps, variable, method)
     cmap = "YlOrRd" if variable == "pvpot" else "viridis"
     figure = plt.figure(figsize=(11.4, 8.6))
     grid = GridSpec(
@@ -684,12 +700,13 @@ def plot_period_maps(
     )
     colorbar.ax.tick_params(labelsize=8)
     figure.suptitle(
-        f"Fig. {figure_number} reproduction — {variable.upper()} spatial distribution (route B)",
+        f"Fig. {figure_number} reproduction — {variable.upper()} spatial distribution "
+        f"(route {ROUTE_NAME[method]})",
         y=0.99,
     )
     save_figure(
         figure,
-        output / f"Fig{figure_number}_{variable}_period_maps_route_B",
+        output / f"Fig{figure_number}_{variable}_period_maps_{ROUTE_TAG[method]}",
         formats,
         dpi,
         outputs,
@@ -707,25 +724,15 @@ def plot_change_maps(
     formats: list[str],
     dpi: int,
     outputs: list,
+    method: str,
+    limit: float,
 ) -> None:
-    panels = []
-    arrays = []
-    for row, scenario in enumerate(SCENARIOS):
-        for column, period in enumerate(FUTURE_PERIODS):
-            data = masked(
-                maps["gridwise_relative_change_percent"].sel(
-                    {
-                        "scenario": scenario,
-                        "method": "paper_qm",
-                        "future_period": period,
-                        "energy_variable": variable,
-                    }
-                ),
-                maps,
-            )
-            panels.append((row, column, scenario, period))
-            arrays.append(data)
-    limit = symmetric_limit(arrays)
+    panels = [
+        (row, column, scenario, period)
+        for row, scenario in enumerate(SCENARIOS)
+        for column, period in enumerate(FUTURE_PERIODS)
+    ]
+    arrays = change_arrays(maps, variable, method)
     figure = plt.figure(figsize=(8.8, 8.7))
     grid = GridSpec(
         3,
@@ -770,12 +777,12 @@ def plot_change_maps(
     colorbar.ax.tick_params(labelsize=8)
     figure.suptitle(
         f"Fig. {figure_number} reproduction — {variable.upper()} change from 1994–2014 "
-        "(route B; grid-cell percentage definition)",
+        f"(route {ROUTE_NAME[method]}; grid-cell percentage definition)",
         y=0.99,
     )
     save_figure(
         figure,
-        output / f"Fig{figure_number}_{variable}_gridwise_change_route_B",
+        output / f"Fig{figure_number}_{variable}_gridwise_change_{ROUTE_TAG[method]}",
         formats,
         dpi,
         outputs,
@@ -818,8 +825,9 @@ def plot_complementarity(
     formats: list[str],
     dpi: int,
     outputs: list,
+    method: str,
 ) -> None:
-    panels, arrays = complementarity_panels(maps, definition, "paper_qm")
+    panels, arrays = complementarity_panels(maps, definition, method)
     cmap = ListedColormap(COMPLEMENTARITY_COLORS, name="paper_complementarity")
     norm = BoundaryNorm(np.arange(0.5, 9.5, 1.0), cmap.N)
     figure = plt.figure(figsize=(13.4, 8.8))
@@ -871,16 +879,17 @@ def plot_complementarity(
     samples = "84 seasonal samples" if definition == "seasonal_full" else "252 monthly samples"
     figure.suptitle(
         f"Fig. {figure_number} reproduction — {scale} solar–wind complementarity "
-        f"(route B; {samples})",
+        f"(route {ROUTE_NAME[method]}; {samples})",
         y=0.99,
     )
     save_figure(
         figure,
-        output / f"Fig{figure_number}_{scale}_complementarity_route_B",
+        output / f"Fig{figure_number}_{scale}_complementarity_{ROUTE_TAG[method]}",
         formats,
         dpi,
         outputs,
-        f"Paper Fig. {figure_number} reproduction: {definition} classified with paper Table 3, route B.",
+        f"Paper Fig. {figure_number} reproduction: {definition} classified with paper Table 3, "
+        f"route {ROUTE_NAME[method]}.",
     )
 
 
@@ -1196,6 +1205,89 @@ def plot_complementarity_difference(
     )
 
 
+def padded_ylim(values: np.ndarray, frac: float = 0.04) -> tuple[float, float]:
+    """Expand a data range by ``frac`` on both ends so curves/bands don't touch axes."""
+    lo = float(np.min(values))
+    hi = float(np.max(values))
+    if not np.isfinite(lo) or not np.isfinite(hi):
+        return lo, hi
+    span = hi - lo
+    if span <= 0:
+        pad = max(abs(hi) * 0.01, 1e-6)
+        return lo - pad, hi + pad
+    pad = frac * span
+    return lo - pad, hi + pad
+
+
+def joint_period_limits(maps: xr.Dataset, variable: str) -> tuple[float, float]:
+    """1st-99th-percentile color limits over BOTH routes so B and D share one scale."""
+    arrays = (
+        nine_period_panels(maps, variable, "paper_qm")[1]
+        + nine_period_panels(maps, variable, "optimized")[1]
+    )
+    return sequential_limits(arrays)
+
+
+def change_arrays(
+    maps: xr.Dataset, variable: str, method: str
+) -> list[xr.DataArray]:
+    arrays = []
+    for scenario in SCENARIOS:
+        for period in FUTURE_PERIODS:
+            arrays.append(
+                masked(
+                    maps["gridwise_relative_change_percent"].sel(
+                        {
+                            "scenario": scenario,
+                            "method": method,
+                            "future_period": period,
+                            "energy_variable": variable,
+                        }
+                    ),
+                    maps,
+                )
+            )
+    return arrays
+
+
+def joint_change_limit(maps: xr.Dataset, variable: str) -> float:
+    """Symmetric (0-centred) change-map limit over BOTH routes."""
+    return symmetric_limit(
+        change_arrays(maps, variable, "paper_qm")
+        + change_arrays(maps, variable, "optimized")
+    )
+
+
+def joint_energy_ylim(annual: pd.DataFrame, variable: str) -> tuple[float, float]:
+    """Shared y-range for the annual energy line plot (ensemble mean only)."""
+    pieces = [
+        annual_subset(annual, variable, method, scenario)["mean"].to_numpy(dtype=float)
+        for method in METHODS
+        for scenario in SCENARIOS
+    ]
+    return padded_ylim(np.concatenate(pieces))
+
+
+def joint_climate_ylims(
+    annual_model: pd.DataFrame, annual: pd.DataFrame
+) -> dict[str, tuple[float, float]]:
+    """Shared per-variable y-range for Fig02 (17 members + min/max band + mean)."""
+    ylims = {}
+    for variable in ("rsds", "tas_c", "sfcWind_10m"):
+        pieces = []
+        for method in METHODS:
+            for scenario in SCENARIOS:
+                data = annual_subset(annual, variable, method, scenario)
+                pieces.append(data["minimum"].to_numpy(dtype=float))
+                pieces.append(data["maximum"].to_numpy(dtype=float))
+                members = annual_model_subset(annual_model, variable, method, scenario)
+                pieces.append(
+                    members["china_area_weighted_annual_mean"].to_numpy(dtype=float)
+                )
+        ylims[variable] = padded_ylim(np.concatenate(pieces))
+    return ylims
+
+
 def main() -> int:
     arguments = parse_arguments()
     if arguments.dpi < 72:
@@ -1257,33 +1349,60 @@ def main() -> int:
             min(55.0, float(valid_lat.max())),
         )
         paper_root = output_root / "paper_baseline"
-        optimization_root = output_root / "optimization"
+        optimized_root = output_root / "optimized_route"
+        comparison_root = output_root / "method_comparison"
         outputs: list[dict[str, str]] = []
 
-        print("Plotting paper-baseline figures 2-10 ...")
-        plot_paper_climate_annual(
-            annual_model,
-            annual,
-            paper_root,
-            arguments.formats,
-            arguments.dpi,
-            outputs,
-        )
-        plot_paper_energy_annual(annual, "pvpot", "03", paper_root, arguments.formats, arguments.dpi, outputs)
-        plot_period_maps(maps, geometries, extent, "pvpot", "04", paper_root, arguments.formats, arguments.dpi, outputs)
-        plot_change_maps(maps, geometries, extent, "pvpot", "05", paper_root, arguments.formats, arguments.dpi, outputs)
-        plot_paper_energy_annual(annual, "wpd", "06", paper_root, arguments.formats, arguments.dpi, outputs)
-        plot_period_maps(maps, geometries, extent, "wpd", "07", paper_root, arguments.formats, arguments.dpi, outputs)
-        plot_change_maps(maps, geometries, extent, "wpd", "08", paper_root, arguments.formats, arguments.dpi, outputs)
-        plot_complementarity(maps, geometries, extent, "seasonal_full", "09", paper_root, arguments.formats, arguments.dpi, outputs)
-        plot_complementarity(maps, geometries, extent, "monthly_full", "10", paper_root, arguments.formats, arguments.dpi, outputs)
+        # Joint B+D color/y limits so both routes share identical scales.
+        period_limits = {
+            variable: joint_period_limits(maps, variable)
+            for variable in ("pvpot", "wpd")
+        }
+        change_limits = {
+            variable: joint_change_limit(maps, variable)
+            for variable in ("pvpot", "wpd")
+        }
+        energy_ylims = {
+            variable: joint_energy_ylim(annual, variable)
+            for variable in ("pvpot", "wpd")
+        }
+        climate_ylims = joint_climate_ylims(annual_model, annual)
 
-        print("Plotting B/D optimization figures ...")
-        plot_annual_B_D(annual, optimization_root, arguments.formats, arguments.dpi, outputs)
-        plot_method_difference_maps(maps, geometries, extent, "pvpot", optimization_root, arguments.formats, arguments.dpi, outputs)
-        plot_method_difference_maps(maps, geometries, extent, "wpd", optimization_root, arguments.formats, arguments.dpi, outputs)
-        plot_national_change(national, optimization_root, arguments.formats, arguments.dpi, outputs)
-        plot_complementarity_difference(maps, geometries, extent, optimization_root, arguments.formats, arguments.dpi, outputs)
+        print("Shared B/D color/y limits (identical for both routes):")
+        for variable in ("rsds", "tas_c", "sfcWind_10m"):
+            print(f"  Fig02       {variable:12s} ylim = {climate_ylims[variable]}")
+        for variable in ("pvpot", "wpd"):
+            print(f"  Fig03/06    {variable:12s} ylim = {energy_ylims[variable]}")
+            print(f"  Fig04/07    {variable:12s} colorbar = {period_limits[variable]}")
+            print(f"  Fig05/08    {variable:12s} symmetric limit = {change_limits[variable]}")
+
+        for method, root in (("paper_qm", paper_root), ("optimized", optimized_root)):
+            print(f"Plotting route-{ROUTE_NAME[method]} figures 2-10 ...")
+            plot_paper_climate_annual(
+                annual_model,
+                annual,
+                root,
+                arguments.formats,
+                arguments.dpi,
+                outputs,
+                method,
+                climate_ylims,
+            )
+            plot_paper_energy_annual(annual, "pvpot", "03", root, arguments.formats, arguments.dpi, outputs, method, energy_ylims["pvpot"])
+            plot_period_maps(maps, geometries, extent, "pvpot", "04", root, arguments.formats, arguments.dpi, outputs, method, *period_limits["pvpot"])
+            plot_change_maps(maps, geometries, extent, "pvpot", "05", root, arguments.formats, arguments.dpi, outputs, method, change_limits["pvpot"])
+            plot_paper_energy_annual(annual, "wpd", "06", root, arguments.formats, arguments.dpi, outputs, method, energy_ylims["wpd"])
+            plot_period_maps(maps, geometries, extent, "wpd", "07", root, arguments.formats, arguments.dpi, outputs, method, *period_limits["wpd"])
+            plot_change_maps(maps, geometries, extent, "wpd", "08", root, arguments.formats, arguments.dpi, outputs, method, change_limits["wpd"])
+            plot_complementarity(maps, geometries, extent, "seasonal_full", "09", root, arguments.formats, arguments.dpi, outputs, method)
+            plot_complementarity(maps, geometries, extent, "monthly_full", "10", root, arguments.formats, arguments.dpi, outputs, method)
+
+        print("Plotting B/D method-comparison figures ...")
+        plot_annual_B_D(annual, comparison_root, arguments.formats, arguments.dpi, outputs)
+        plot_method_difference_maps(maps, geometries, extent, "pvpot", comparison_root, arguments.formats, arguments.dpi, outputs)
+        plot_method_difference_maps(maps, geometries, extent, "wpd", comparison_root, arguments.formats, arguments.dpi, outputs)
+        plot_national_change(national, comparison_root, arguments.formats, arguments.dpi, outputs)
+        plot_complementarity_difference(maps, geometries, extent, comparison_root, arguments.formats, arguments.dpi, outputs)
 
         manifest = {
             "created_utc": datetime.now(timezone.utc).isoformat(),
@@ -1296,6 +1415,10 @@ def main() -> int:
             },
             "excluded_routes": ["A", "C"],
             "paper_figures": [f"Fig{i:02d}" for i in range(2, 11)],
+            "paper_figure_routes": {
+                "paper_baseline": "route B (paper_qm)",
+                "optimized_route": "route D (optimized)",
+            },
             "paper_layouts": {
                 "Fig02": "3 scenarios x 3 climate variables; 17 members plus max/min/mean",
                 "Fig03_Fig06": "three scenario ensemble-mean curves without uncertainty envelope",
@@ -1320,8 +1443,11 @@ def main() -> int:
                 "zero_rule": "rho == 0 is assigned to weak complementarity",
             },
             "color_scaling": (
-                "shared within each multi-panel figure; sequential maps use 1st-99th percentiles; "
-                "difference maps use symmetric 99th absolute percentile; clipped values are shown with extend"
+                "shared within each multi-panel figure AND jointly across routes B and D; "
+                "sequential maps use 1st-99th percentiles of the joint B+D data; "
+                "difference maps use symmetric 99th absolute percentile of the joint B+D data; "
+                "annual line plots share a joint B+D y-range with 4% padding; "
+                "clipped values are shown with extend"
             ),
             "formats": list(arguments.formats),
             "dpi": int(arguments.dpi),
@@ -1336,8 +1462,9 @@ def main() -> int:
         print("=" * 100)
         print("FINAL FIGURES V2 COMPLETED")
         print("=" * 100)
-        print(f"Paper figures       : {paper_root}")
-        print(f"Optimization figures: {optimization_root}")
+        print(f"Paper-baseline figures (route B): {paper_root}")
+        print(f"Optimized-route figures (route D): {optimized_root}")
+        print(f"Method-comparison figures        : {comparison_root}")
         print(f"Figure manifest     : {manifest_path}")
         print(f"Files written       : {len(outputs)} figure file(s)")
         print("Next: visually inspect the figures and then prepare the project README/results text.")

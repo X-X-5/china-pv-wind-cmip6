@@ -8,7 +8,7 @@ for _dir in (_OWN_DIR, _SCRIPTS_DIR / "common", _SCRIPTS_DIR / "03_bias_correcti
         _sys.path.insert(0, str(_dir))
 from project_paths import PROJECT_ROOT, get_path  # noqa: E402
 # -------------------------------------------------------------------
-"""Create a China-only Natural Earth shapefile for QC masking.
+"""Create a China analysis-domain Natural Earth shapefile for QC masking.
 
 This script only creates boundary files. It does not read CMIP6, ERA5,
 QM, or QDM outputs.
@@ -20,19 +20,21 @@ import sys
 
 import cartopy.io.shapereader as shpreader
 import shapefile
+from shapely.geometry import shape as shapely_shape
+from shapely.ops import unary_union
 
 
 OUTPUT_DIR = get_path("data_boundaries")
 OUTPUT_SHP = OUTPUT_DIR / "china_qc_boundary.shp"
 
+# China land area within the study domain is stored by Natural Earth as
+# separate admin-0 records (CHN, TWN, and the HKG/MAC enclaves). They are
+# unioned here solely to construct the quantitative analysis mask.
+REQUIRED_ADM0_A3 = ("CHN", "TWN", "HKG", "MAC")
 
-def is_china(attributes):
-    # A broad SOVEREIGNT == "China" test also selects the separate
-    # Hong Kong and Macao records in Natural Earth.  Select the single
-    # country polygon explicitly so this QC mask has exactly one record.
-    admin = str(attributes.get("ADMIN", "")).strip().lower()
-    adm0_a3 = str(attributes.get("ADM0_A3", "")).strip().upper()
-    return admin == "china" and adm0_a3 == "CHN"
+
+def is_target(attributes):
+    return str(attributes.get("ADM0_A3", "")).strip().upper() in REQUIRED_ADM0_A3
 
 
 def main():
@@ -52,31 +54,41 @@ def main():
     selected = []
     for shape_record in reader.iterShapeRecords():
         attributes = dict(zip(field_names, shape_record.record))
-        if is_china(attributes):
+        if is_target(attributes):
             selected.append((shape_record.shape, attributes))
 
-    if len(selected) != 1:
+    found = sorted(
+        str(attributes.get("ADM0_A3", "")).strip().upper()
+        for _, attributes in selected
+    )
+    if found != sorted(REQUIRED_ADM0_A3):
         raise RuntimeError(
-            "Expected exactly one China record in Natural Earth; "
-            f"found {len(selected)}."
+            "Expected exactly one record for each required Natural Earth "
+            f"admin-0 code {sorted(REQUIRED_ADM0_A3)}; found {found}."
         )
+
+    # Union all selected geometries into a single boundary, preserving every
+    # Polygon/MultiPolygon part (mainland, Hainan, islands, Taiwan and its
+    # offshore islands, and the Hong Kong / Macao enclaves).
+    merged = unary_union([shapely_shape(shape) for shape, _ in selected])
 
     writer = shapefile.Writer(
         str(OUTPUT_SHP),
-        shapeType=reader.shapeType,
+        shapeType=shapefile.POLYGON,
         encoding="utf-8",
     )
     writer.field("NAME", "C", size=80)
-    writer.field("ADM0_A3", "C", size=10)
+    writer.field("ADM0_A3", "C", size=20)
     writer.field("SOURCE", "C", size=40)
+    writer.field("PURPOSE", "C", size=120)
 
-    for geometry, attributes in selected:
-        writer.shape(geometry)
-        writer.record(
-            NAME=attributes.get("ADMIN", "China"),
-            ADM0_A3=attributes.get("ADM0_A3", "CHN"),
-            SOURCE="Natural Earth 10m",
-        )
+    writer.shape(merged)
+    writer.record(
+        NAME="China analysis domain",
+        ADM0_A3="CHN+TWN+HKG+MAC",
+        SOURCE="Natural Earth 10m",
+        PURPOSE="quantitative analysis mask; not an official standard map",
+    )
 
     writer.close()
     reader.close()
@@ -96,7 +108,7 @@ def main():
 
     check = shapefile.Reader(str(OUTPUT_SHP), encoding="utf-8")
     print("=" * 80)
-    print("CHINA QC SHAPEFILE CREATED")
+    print("CHINA ANALYSIS BOUNDARY CREATED")
     print("=" * 80)
     print(f"Source  : {source_shp}")
     print(f"Output  : {OUTPUT_SHP}")
