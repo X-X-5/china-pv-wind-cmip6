@@ -793,6 +793,7 @@ def plot_annual_series(df: pd.DataFrame) -> Path:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
+    from matplotlib.gridspec import GridSpec
 
     FIGURES.mkdir(parents=True, exist_ok=True)
     colors = {"ssp126": "#2c7bb6", "ssp245": "#fdae61", "ssp585": "#d7191c"}
@@ -800,7 +801,19 @@ def plot_annual_series(df: pd.DataFrame) -> Path:
               ("wpd", "Wind power density", "WPD (W m$^{-2}$)", None),
               ("sfcWind_10m", "Surface wind speed", "sfcWind (m s$^{-1}$)", None))
 
-    fig, axes = plt.subplots(3, 1, figsize=(8.5, 11), sharex=True, constrained_layout=True)
+    # Dedicated top row for a figure-level legend (no in-axes legend, so nothing
+    # overlaps the curves).  Suptitle sits above ``top``; the legend row is gs[0].
+    fig = plt.figure(figsize=(8.5, 11))
+    gs = GridSpec(4, 1, figure=fig, height_ratios=[0.45, 1, 1, 1], hspace=0.22,
+                  left=0.10, right=0.96, top=0.865, bottom=0.055)
+    leg_ax = fig.add_subplot(gs[0, 0])
+    leg_ax.axis("off")
+    ax0 = fig.add_subplot(gs[1, 0])
+    axes = [ax0,
+            fig.add_subplot(gs[2, 0], sharex=ax0),
+            fig.add_subplot(gs[3, 0], sharex=ax0)]
+    for ax in axes[:-1]:
+        ax.tick_params(axis="x", labelbottom=False)
 
     for ax, (var, title, ylabel, endpoints) in zip(axes, panels):
         sfc_vals: list[np.ndarray] = []
@@ -835,8 +848,8 @@ def plot_annual_series(df: pd.DataFrame) -> Path:
         Line2D([], [], marker="x", color="0.15", lw=0, ms=7, markeredgewidth=1.7,
                label="Published approximate year-2100 endpoint"),
     ]
-    axes[0].legend(handles=handles, title="solid lines = Route B annual ensemble means",
-                   loc="upper left", fontsize=8, title_fontsize=8, framealpha=0.9, ncol=2)
+    leg_ax.legend(handles=handles, loc="center", ncol=4, fontsize=8.5,
+                  frameon=False, handlelength=2.2, columnspacing=1.4, borderaxespad=0)
 
     fig.suptitle("Route B (paper_qm): annual ensemble means, 2015–2100\n"
                  "Published approximate year-2100 values shown as qualitative anchors",
