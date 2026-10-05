@@ -252,7 +252,7 @@ def validate_inputs(
         "optimized_minus_paper",
         "spearman_rho",
         "spearman_category",
-        "china_mask",
+        "china_intersects",
     }
     missing_maps = map_variables - set(maps.data_vars)
     if missing_maps:
@@ -280,8 +280,8 @@ def validate_inputs(
         raise ValueError(
             f"Annual model table should contain 17 models; found {annual_model['model'].nunique()}"
         )
-    if not bool(np.asarray(maps["china_mask"].values).astype(bool).any()):
-        raise ValueError("china_mask contains no selected cells")
+    if not bool(np.asarray(maps["china_intersects"].values).astype(bool).any()):
+        raise ValueError("china_intersects contains no selected cells")
     return annual_model, annual, national, maps
 
 
@@ -550,9 +550,9 @@ def _china_boundary_to_path(geometries) -> MplPath:
 def clip_mesh_to_china(mappable, geometries, axis) -> None:
     """Clip a map QuadMesh to the China boundary, preserving the 1° grid.
 
-    The center-point mask is unchanged (it still drives the area-weighted
-    statistics and ensemble); this only trims the drawn mesh to the true
-    coastline so grid colours stop spilling past the border.
+    Selection uses every cell whose area intersects the China polygon
+    (``china_intersects``); this final polygon clip only trims the drawn mesh
+    to the true coastline so grid colours stop spilling past the border.
     """
     key = id(geometries)
     path = _CHINA_BOUNDARY_PATHS.get(key)
@@ -565,7 +565,7 @@ def clip_mesh_to_china(mappable, geometries, axis) -> None:
 
 
 def masked(data: xr.DataArray, maps: xr.Dataset) -> xr.DataArray:
-    return data.where(maps["china_mask"].astype(bool))
+    return data.where(maps["china_intersects"].astype(bool))
 
 
 def finite_values(arrays: list[xr.DataArray]) -> np.ndarray:
@@ -1330,8 +1330,8 @@ def main() -> int:
         print(f"National rows   : {len(national)}")
         print(f"Map grid        : {maps.sizes['lat']} lat x {maps.sizes['lon']} lon")
         print(
-            f"China cells     : {int(maps['china_mask'].astype(bool).sum().values)}/"
-            f"{maps.sizes['lat'] * maps.sizes['lon']}"
+            f"China cells     : {int(maps['china_intersects'].astype(bool).sum().values)}/"
+            f"{maps.sizes['lat'] * maps.sizes['lon']} intersecting"
         )
         if arguments.dry_run:
             print("DRY RUN COMPLETED: figure inputs, dimensions, columns, and masks are valid.")
@@ -1431,7 +1431,7 @@ def main() -> int:
                 "per-model grid-cell relative change followed by equal-weight ensemble (口径1)"
             ),
             "national_percentage_definition": (
-                "percent change of China cosine-latitude-weighted area mean (口径2)"
+                "percent change of China intersection-area-weighted area mean (口径2)"
             ),
             "wpd_log_rule": (
                 "log10 applied only to displayed WPD period maps; WPD changes use raw WPD"

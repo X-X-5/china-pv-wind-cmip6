@@ -34,12 +34,15 @@ dependencies:
   # Plotting
   - matplotlib
 
-  # Downloads (public URLs; no credentials)
+  # Downloads — CMIP6 (requests) and ERA5 via the CDS API (cdsapi).
+  # cdsapi reads its API key from ~/.cdsapirc; that file is user-level and is
+  # never stored in this repository.
   - requests
+  - cdsapi
 
-  # Optional — ERA5/GRIB preprocessing only.
-  # cfgrib needs the ecCodes C library (the `eccodes` conda package).
-  # NetCDF-based production does not require either.
+  # ERA5/GRIB preprocessing.  cfgrib needs the ecCodes C library (the
+  # `eccodes` conda package).  With both present, download, GRIB->NetCDF
+  # conversion, and the whole NetCDF pipeline run in this one environment.
   - cfgrib
   - eccodes
 

@@ -53,15 +53,17 @@ EXPECTED_CSV_ROWS = {
 EXPECTED_CSV_COLUMNS = {
     "future_qc": {
         "model", "scenario", "variable", "month", "method", "qc_region",
-        "samples", "tail_rule_trigger_percent", "ratio_fallback_percent",
+        "spatial_weighting", "samples", "tail_rule_trigger_percent",
+        "ratio_fallback_percent",
     },
     "future_change_signal": {
         "model", "scenario", "variable", "month", "method", "signal_unit",
-        "qc_region",
+        "qc_region", "spatial_weighting",
     },
     "future_period_change_signal": {
         "model", "scenario", "variable", "period", "period_start_year",
         "period_end_year", "month", "method", "signal_unit", "qc_region",
+        "spatial_weighting",
     },
 }
 
@@ -414,6 +416,7 @@ def inspect_manifest(
                 "n_quantiles": data.get("n_quantiles"),
                 "qdm_window_years": data.get("qdm_future_cdf_window_years"),
                 "qc_region": data.get("qc_region"),
+                "qc_spatial_weighting": data.get("qc_spatial_weighting"),
                 "variable_count": len(data.get("variables", [])),
             }
         )
@@ -425,7 +428,8 @@ def inspect_manifest(
             "bounds": list(EXPECTED_BOUNDS),
             "n_quantiles": EXPECTED_N_QUANTILES,
             "qdm_future_cdf_window_years": EXPECTED_QDM_WINDOW,
-            "qc_region": "rectangular_domain",
+            "qc_region": "china_boundary",
+            "qc_spatial_weighting": "geodesic_china_intersection_area",
         }
         for key, expected in checks.items():
             if data.get(key) != expected:
@@ -525,7 +529,7 @@ def main() -> int:
     manifest_fields = [
         "model", "scenario", "path", "exists", "historical_fit_period",
         "future_period", "bounds", "n_quantiles", "qdm_window_years",
-        "qc_region", "variable_count",
+        "qc_region", "qc_spatial_weighting", "variable_count",
     ]
     netcdf_fields = [
         "model", "scenario", "variable", "path", "exists", "file_size_mb",

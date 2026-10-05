@@ -25,36 +25,49 @@ Only the following third-party packages are imported by the scripts:
 | xarray | NetCDF / labelled arrays | 2026.7.0 |
 | scipy | statistics (energy metrics) | 1.18.0 |
 | netCDF4 | NetCDF I/O backend | 1.7.4 |
-| shapely | geometry / China mask | 2.1.2 |
+| shapely | geometry / China boundary intersection | 2.1.2 |
 | cartopy | map projections | 0.26.0 |
-| pyproj | coordinate transforms (cartopy dep) | 3.8.0 |
+| pyproj | geodesic areas + coordinate transforms | 3.8.0 |
 | cftime | calendar/time handling | 1.6.5 |
 | matplotlib | plotting | 3.11.2 |
 | requests | HTTP downloads (public URLs) | — |
-| cfgrib | **optional** — ERA5/GRIB reading | — |
+| cdsapi | ERA5 download via the CDS API | — |
+| cfgrib | ERA5/GRIB reading (needs eccodes) | — |
+| eccodes | ecCodes C library (cfgrib backend) | — |
 
 Versions are the values observed in the working environment; they are
 informative, not hard pins.
 
-## cfgrib / ecCodes (GRIB only, optional)
+## One environment for the whole pipeline
 
-`cfgrib` is used only to read the raw ERA5 `.grib` files
-(`notebooks/ERA5_Data().ipynb` and the ERA5 download path). It depends on the
-**ecCodes** C library, which is *not* a Python package and therefore cannot be
-installed by pip alone. In the working environment `cfgrib` is present but
-ecCodes was not installed, so `import cfgrib` raises
-`RuntimeError: Cannot find the ecCodes library`.
+`environment.yml` installs everything the project needs in a single `pvwind`
+environment: `cdsapi` for the ERA5/CDS download, `cfgrib` + `eccodes` for
+reading the raw ERA5 `.grib` files, and `netCDF4`/`xarray` for the rest.
 
-To enable ERA5/GRIB preprocessing:
+`cfgrib` depends on the **ecCodes** C library, which is *not* a Python package
+and therefore cannot be installed by pip alone; `environment.yml` declares it
+as the `eccodes` conda package. Both are installed and `import cfgrib` works in
+the working environment, so download, GRIB→NetCDF conversion, and the whole
+NetCDF pipeline run in this one environment.
+
+### Windows note — native DLLs on `PATH`
+
+On Windows, ecCodes (and netCDF4) ship native DLLs under the environment's
+`Library/bin` directory. When invoking the interpreter directly (without
+`conda activate`), add that directory to `PATH` first:
 
 ```bash
-conda install -c conda-forge eccodes
-# or use the OS package manager, e.g.:
-#   apt-get install libeccodes0  (Debian/Ubuntu)
+export PATH="$CONDA_PREFIX/Library/bin:$PATH"   # Git Bash
 ```
 
-All NetCDF-based production (bias correction, energy metrics, ensemble,
-final analysis, plotting) uses the `netCDF4` backend and is unaffected.
+Failure to do so surfaces as `RuntimeError: Cannot find the ecCodes library`
+(cfgrib) or an exit-code 127 DLL-load failure (netCDF4/native dependencies).
+
+### CDS credentials
+
+`cdsapi` reads its CDS API key from `~/.cdsapirc` (user-level). That file is
+**not** part of the repository, and no credentials are stored in any tracked
+file.
 
 ## Not required
 

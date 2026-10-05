@@ -32,9 +32,14 @@ reproduces the study's baseline route and an optimized variant.
 - **Domain:** China land area within the study domain (73–135°E, 15–54°N);
   areas south of 15°N are outside the quantitative domain. Natural Earth
   stores the relevant geometries as separate `CHN`/`TWN`/`HKG`/`MAC` records,
-  which are unioned solely to construct the quantitative analysis mask. This
-  analysis boundary is a scientific mask and **is not an official standard
-  map**.
+  which are unioned solely to construct the quantitative analysis boundary.
+  This analysis boundary is a scientific mask and **is not an official
+  standard map**.
+- **Spatial weighting (method C):** every national spatial mean is weighted by
+  the **geodesic intersection area** between each grid cell and the analysis
+  boundary (WGS84 ellipsoid) — not by a centre-point mask or `cos(latitude)`.
+  The boundary polygon's own geodesic area is reported as the
+  **analysis-boundary polygon area**, which is *not* official China land area.
 
 ## 3. Periods
 
@@ -51,6 +56,10 @@ reproduces the study's baseline route and an optimized variant.
   `Opt01`–`Opt04`.
 - **Two aggregation definitions:** grid-wise maps (definition 1) and national
   aggregates (definition 2).
+- **Model-first, native-grid aggregation:** per-model diagnostics are computed
+  on each model's native grid, then summarised there (annual national series)
+  or bilinearly interpolated to the common 1° grid before an equal-weight
+  17-model ensemble. No downscaling or gap-filling is applied.
 
 ## 5. Pipeline (7 stages)
 
@@ -236,6 +245,23 @@ Data providers:
   `TWN` + `HKG` + `MAC`), not an official standard map; figures intended for
   official publication should use the standard-map service with an approval
   number and the required South China Sea inset.
+- National statistics use intersection-area weighting: a cell contributes to a
+  national mean when its area intersects the analysis-boundary polygon, and its
+  weight is that overlap area. Map figures draw every finite intersecting cell
+  and are then clipped to the polygon outline; values are not downscaled,
+  gap-filled, or neighbour-interpolated beyond the 1° ensemble grid.
+- The legacy centre-point-mask / cos(latitude) ensemble route (a separate
+  "first-ensemble" builder) has been removed from the active scripts and is no
+  longer shipped as a project statistic; it remains recoverable from the git
+  history.
+- CanESM5's native grid is coarse, and its Stage-2 China clip keeps the minimal
+  contiguous lat/lon index range enclosing every cell that *intersects* the
+  analysis boundary. This retains the cell centred at 54.416°N whose southern
+  half overlaps China's northernmost tip (northern Heilongjiang, ~53.02–53.57°N),
+  so CanESM5 now covers the full analysis boundary. To supply that northern cell,
+  the ERA5 reference is extended north to 56°N (still 70–140°E, 0.25°); the
+  quantitative analysis boundary itself remains 15–54°N. All 17 models now cover
+  ≥99.9999% of the boundary.
 
 ## 15. License
 

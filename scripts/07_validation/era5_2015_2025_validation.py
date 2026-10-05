@@ -8,6 +8,12 @@ for _dir in (_OWN_DIR, _SCRIPTS_DIR / "common", _SCRIPTS_DIR / "03_bias_correcti
     if _dir.is_dir() and str(_dir) not in _sys.path:
         _sys.path.insert(0, str(_dir))
 from project_paths import PROJECT_ROOT, get_path  # noqa: E402
+from area_weights import (  # noqa: E402
+    area_weighted_mean,
+    area_weighted_median,
+    china_intersection_weights,
+    geodesic_gridcell_areas,
+)
 # -------------------------------------------------------------------
 
 """Prepare ERA5 2015-2025 and validate one future QM/QDM pilot.
@@ -32,16 +38,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import xarray as xr
-
-try:
-    import cartopy.io.shapereader as shpreader
-    from shapely.geometry import Point
-    from shapely.ops import unary_union
-except ImportError as error:
-    raise RuntimeError(
-        "Cartopy and Shapely are required for China-mask validation. "
-        "Install them with: conda install -c conda-forge cartopy shapely"
-    ) from error
 
 try:
     import cfgrib
@@ -301,26 +297,81 @@ def write_csv(path: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
-def correlation(left: np.ndarray, right: np.ndarray) -> float:
+def _weighted_correlation(
+    left: np.ndarray,
+    right: np.ndarray,
+    weights: np.ndarray,
+) -> float:
     x = np.asarray(left, dtype=np.float64).ravel()
     y = np.asarray(right, dtype=np.float64).ravel()
-    valid = np.isfinite(x) & np.isfinite(y)
-    if valid.sum() < 3 or np.std(x[valid]) == 0.0 or np.std(y[valid]) == 0.0:
-        return np.nan
-    return float(np.corrcoef(x[valid], y[valid])[0, 1])
+    w = np.asarray(weights, dtype=np.float64).ravel()
+    if x.shape != y.shape or x.shape != w.shape:
+        raise ValueError("correlation inputs must share the same shape")
+    finite = np.isfinite(x) & np.isfinite(y) & (w > 0.0)
+    x = x[finite]
+    y = y[finite]
+    w = w[finite]
+    if w.size < 3:
+        return float("nan")
+    total = float(w.sum())
+    if total <= 0.0:
+        return float("nan")
+    mean_x = float((x * w).sum() / total)
+    mean_y = float((y * w).sum() / total)
+    covariance = float((w * (x - mean_x) * (y - mean_y)).sum() / total)
+    var_x = float((w * (x - mean_x) ** 2).sum() / total)
+    var_y = float((w * (y - mean_y) ** 2).sum() / total)
+    if var_x <= 0.0 or var_y <= 0.0:
+        return float("nan")
+    return float(covariance / np.sqrt(var_x * var_y))
 
 
-def build_spatial_mask(
+def _weighted_quantile(
+    values: np.ndarray,
+    weights: np.ndarray,
+    probability: float,
+) -> float:
+    values = np.asarray(values, dtype=np.float64)
+    weights = np.broadcast_to(
+        np.asarray(weights, dtype=np.float64), values.shape
+    )
+    finite = np.isfinite(values) & (weights > 0.0)
+    ordered_values = values[finite]
+    ordered_weights = weights[finite]
+    if ordered_values.size == 0:
+        return float("nan")
+    order = np.argsort(ordered_values)
+    ordered_values = ordered_values[order]
+    ordered_weights = ordered_weights[order]
+    cumulative = np.cumsum(ordered_weights)
+    total = cumulative[-1]
+    if total <= 0.0:
+        return float("nan")
+    index = int(np.searchsorted(cumulative, probability * total))
+    return float(ordered_values[min(index, ordered_values.size - 1)])
+
+
+def build_spatial_weights(
     target: xr.Dataset,
     shapefile_path: Path | None,
 ) -> tuple[np.ndarray, str, dict]:
-    """Build a grid-cell-centre mask on the target GCM grid."""
+    """Return intersection-area weights (km²) on the target GCM grid.
+
+    With a China shapefile, each cell's weight is the WGS84 geodesic area of its
+    intersection with the boundary polygon (zero for cells with no overlap).
+    Without a shapefile, the full rectangular domain is kept and weighted by each
+    cell's own geodesic area.
+    """
     shape = (target.sizes["lat"], target.sizes["lon"])
+    latitudes = np.asarray(target.lat.values, dtype=np.float64)
+    longitudes = np.asarray(target.lon.values, dtype=np.float64)
     if shapefile_path is None:
-        mask = np.ones(shape, dtype=bool)
-        return mask, "rectangular_domain", {
+        weights = geodesic_gridcell_areas(latitudes, longitudes)
+        return weights, "rectangular_domain", {
             "shapefile": None,
-            "selection_rule": "all grid-cell centres in rectangular domain",
+            "selection_rule": (
+                "all grid cells, area-weighted by geodesic cell area (WGS84)"
+            ),
         }
 
     shapefile_path = shapefile_path.expanduser().resolve()
@@ -348,50 +399,33 @@ def build_spatial_mask(
             f"could not confirm this from {shapefile_path.with_suffix('.prj')}"
         )
 
-    reader = shpreader.Reader(str(shapefile_path))
-    try:
-        geometries = list(reader.geometries())
-    finally:
-        close = getattr(reader, "close", None)
-        if close is not None:
-            close()
-    if not geometries:
-        raise ValueError(f"China shapefile contains no geometries: {shapefile_path}")
-    geometry = unary_union(geometries)
-    if geometry.is_empty or not geometry.is_valid:
-        raise ValueError(f"China shapefile geometry is empty or invalid: {shapefile_path}")
-
-    latitudes = np.asarray(target.lat.values, dtype=np.float64)
-    longitudes = np.asarray(target.lon.values, dtype=np.float64)
-    mask = np.zeros(shape, dtype=bool)
-    for lat_index, latitude in enumerate(latitudes):
-        for lon_index, longitude in enumerate(longitudes):
-            mask[lat_index, lon_index] = geometry.covers(
-                Point(float(longitude), float(latitude))
-            )
-
-    selected = int(mask.sum())
-    total = int(mask.size)
+    result = china_intersection_weights(
+        latitudes, longitudes, shapefile_path
+    )
+    weights = result["china_intersection_area_km2"]
+    selected = int(np.count_nonzero(weights > 0.0))
+    total = int(weights.size)
     if selected == 0:
         raise ValueError(
-            "China mask selected zero target-grid cells. Check the shapefile CRS "
-            "and target longitude convention."
+            "China intersection weighting selected zero target-grid cells. "
+            "Check the shapefile CRS and target longitude convention."
         )
-    return mask, "china_mask", {
+    boundary_area = float(result["china_boundary_area_km2"])
+    coverage = float(weights.sum())
+    return weights, "china_intersection", {
         "shapefile": str(shapefile_path),
-        "selection_rule": "GCM grid-cell centre covered by China polygon",
-        "shapefile_geometry_count": len(geometries),
-        "shapefile_bounds": [float(value) for value in geometry.bounds],
+        "selection_rule": (
+            "geodesic intersection area between grid cell and China boundary "
+            "polygon (WGS84); weight = overlap area in km^2"
+        ),
         "selected_grid_cells": selected,
         "total_grid_cells": total,
         "selected_grid_cell_fraction": selected / total,
+        "intersection_area_km2": coverage,
+        "china_boundary_area_km2": boundary_area,
+        "coverage_ratio": coverage / boundary_area if boundary_area > 0.0 else None,
+        "cell_counts": result["counts"],
     }
-
-
-def finite_quantile(values: np.ndarray, probability: float) -> float:
-    array = np.asarray(values, dtype=np.float64)
-    finite = array[np.isfinite(array)]
-    return float(np.quantile(finite, probability)) if finite.size else np.nan
 
 
 def make_validation_rows(
@@ -400,7 +434,7 @@ def make_validation_rows(
     era5: xr.Dataset,
     model: str,
     scenario: str,
-    spatial_mask: np.ndarray,
+    weights: np.ndarray,
     qc_region: str,
 ) -> list[dict]:
     years = np.asarray(corrected.time.dt.year.values, dtype=np.int64)
@@ -420,9 +454,9 @@ def make_validation_rows(
     model_months = np.asarray(model_period.time.dt.month.values, dtype=np.int64)
     era5_months = np.asarray(era5.time.dt.month.values, dtype=np.int64)
     observation = np.asarray(era5[variable].values, dtype=np.float64)
-    if spatial_mask.shape != observation.shape[1:]:
+    if weights.shape != observation.shape[1:]:
         raise ValueError(
-            f"Spatial mask shape {spatial_mask.shape} does not match "
+            f"Weights shape {weights.shape} does not match "
             f"{variable} grid {observation.shape[1:]}"
         )
     rows: list[dict] = []
@@ -439,13 +473,6 @@ def make_validation_rows(
             bias = sample_mean - obs_mean
             absolute_bias = np.abs(bias)
             std_error = np.abs(sample_std - obs_std)
-            masked_bias = bias[spatial_mask]
-            masked_absolute_bias = absolute_bias[spatial_mask]
-            masked_std_error = std_error[spatial_mask]
-            masked_obs_mean = obs_mean[spatial_mask]
-            masked_sample_mean = sample_mean[spatial_mask]
-            masked_obs_sample = obs_sample[:, spatial_mask]
-            masked_sample = sample[:, spatial_mask]
             rows.append(
                 {
                     "model": model,
@@ -457,35 +484,47 @@ def make_validation_rows(
                     "years_per_month": len(mi),
                     "qc_region": qc_region,
                     "unit": str(era5[variable].attrs.get("units", "")),
-                    "bias_spatial_mean": float(np.mean(masked_bias)),
-                    "bias_spatial_median": float(np.median(masked_bias)),
-                    "absolute_bias_spatial_median": float(
-                        np.median(masked_absolute_bias)
+                    "bias_spatial_mean": area_weighted_mean(bias, weights),
+                    "bias_spatial_median": area_weighted_median(bias, weights),
+                    "absolute_bias_spatial_median": area_weighted_median(
+                        absolute_bias, weights
                     ),
-                    "absolute_bias_spatial_mean": float(
-                        np.mean(masked_absolute_bias)
+                    "absolute_bias_spatial_mean": area_weighted_mean(
+                        absolute_bias, weights
                     ),
                     "rmse_of_climatology_field": float(
-                        np.sqrt(np.mean(masked_bias**2))
+                        np.sqrt(area_weighted_mean(bias**2, weights))
                     ),
-                    "climatology_spatial_correlation": correlation(
-                        masked_sample_mean, masked_obs_mean
+                    "climatology_spatial_correlation": _weighted_correlation(
+                        sample_mean, obs_mean, weights
                     ),
-                    "temporal_std_error_spatial_median": float(
-                        np.median(masked_std_error)
+                    "temporal_std_error_spatial_median": area_weighted_median(
+                        std_error, weights
                     ),
-                    "era5_climatology_spatial_mean": float(np.mean(masked_obs_mean)),
-                    "method_climatology_spatial_mean": float(
-                        np.mean(masked_sample_mean)
+                    "era5_climatology_spatial_mean": area_weighted_mean(
+                        obs_mean, weights
                     ),
-                    "era5_p10_all_samples": finite_quantile(masked_obs_sample, 0.10),
-                    "method_p10_all_samples": finite_quantile(masked_sample, 0.10),
-                    "era5_median_all_samples": finite_quantile(
-                        masked_obs_sample, 0.50
+                    "method_climatology_spatial_mean": area_weighted_mean(
+                        sample_mean, weights
                     ),
-                    "method_median_all_samples": finite_quantile(masked_sample, 0.50),
-                    "era5_p90_all_samples": finite_quantile(masked_obs_sample, 0.90),
-                    "method_p90_all_samples": finite_quantile(masked_sample, 0.90),
+                    "era5_p10_all_samples": _weighted_quantile(
+                        obs_sample, weights, 0.10
+                    ),
+                    "method_p10_all_samples": _weighted_quantile(
+                        sample, weights, 0.10
+                    ),
+                    "era5_median_all_samples": _weighted_quantile(
+                        obs_sample, weights, 0.50
+                    ),
+                    "method_median_all_samples": _weighted_quantile(
+                        sample, weights, 0.50
+                    ),
+                    "era5_p90_all_samples": _weighted_quantile(
+                        obs_sample, weights, 0.90
+                    ),
+                    "method_p90_all_samples": _weighted_quantile(
+                        sample, weights, 0.90
+                    ),
                 }
             )
     return rows
@@ -539,17 +578,16 @@ def change_field(
 def spatial_summary(
     values: np.ndarray,
     prefix: str,
-    spatial_mask: np.ndarray,
+    weights: np.ndarray,
 ) -> dict[str, float]:
-    finite = np.asarray(values, dtype=np.float64)
-    if finite.shape != spatial_mask.shape:
+    values = np.asarray(values, dtype=np.float64)
+    if values.shape != weights.shape:
         raise ValueError(
-            f"Spatial field shape {finite.shape} does not match mask "
-            f"shape {spatial_mask.shape}"
+            f"Spatial field shape {values.shape} does not match weights "
+            f"shape {weights.shape}"
         )
-    finite = finite[spatial_mask]
-    finite = finite[np.isfinite(finite)]
-    if not finite.size:
+    selected = np.isfinite(values) & (weights > 0.0)
+    if not selected.any():
         return {
             f"{prefix}_spatial_median": np.nan,
             f"{prefix}_spatial_mean": np.nan,
@@ -558,11 +596,11 @@ def spatial_summary(
             f"{prefix}_spatial_max": np.nan,
         }
     return {
-        f"{prefix}_spatial_median": float(np.median(finite)),
-        f"{prefix}_spatial_mean": float(np.mean(finite)),
-        f"{prefix}_spatial_p10": float(np.quantile(finite, 0.10)),
-        f"{prefix}_spatial_p90": float(np.quantile(finite, 0.90)),
-        f"{prefix}_spatial_max": float(np.max(finite)),
+        f"{prefix}_spatial_median": area_weighted_median(values, weights),
+        f"{prefix}_spatial_mean": area_weighted_mean(values, weights),
+        f"{prefix}_spatial_p10": _weighted_quantile(values, weights, 0.10),
+        f"{prefix}_spatial_p90": _weighted_quantile(values, weights, 0.90),
+        f"{prefix}_spatial_max": float(np.max(values[selected])),
     }
 
 
@@ -571,7 +609,7 @@ def make_near_baseline_rows(
     corrected: xr.Dataset,
     model: str,
     scenario: str,
-    spatial_mask: np.ndarray,
+    weights: np.ndarray,
     qc_region: str,
 ) -> list[dict]:
     years = np.asarray(corrected.time.dt.year.values, dtype=np.int64)
@@ -619,13 +657,13 @@ def make_near_baseline_rows(
                     "qc_region": qc_region,
                 }
                 row.update(
-                    spatial_summary(signal, "change_signal", spatial_mask)
+                    spatial_summary(signal, "change_signal", weights)
                 )
                 row.update(
                     spatial_summary(
                         difference,
                         "absolute_difference_from_raw_signal",
-                        spatial_mask,
+                        weights,
                     )
                 )
                 rows.append(row)
@@ -676,7 +714,8 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help=(
             "Optional WGS84 China .shp file. When supplied, spatial metrics "
-            "use only GCM grid-cell centres covered by the polygon."
+            "use intersection-area weighting (each cell weighted by the WGS84 "
+            "geodesic area of its overlap with the boundary polygon)."
         ),
     )
     parser.add_argument("--dry-run", action="store_true")
@@ -731,16 +770,17 @@ def main() -> int:
     for variable, path in corrected_files.items():
         print(f"  {variable:8s}: {path}")
 
-    spatial_mask, qc_region, mask_metadata = build_spatial_mask(
+    weights, qc_region, weights_metadata = build_spatial_weights(
         target,
         arguments.china_shapefile,
     )
+    selected_cells = int(np.count_nonzero(weights > 0.0))
     print(f"QC region     : {qc_region}")
     if arguments.china_shapefile is not None:
-        print(f"China boundary: {mask_metadata['shapefile']}")
+        print(f"China boundary: {weights_metadata['shapefile']}")
     print(
-        f"QC grid cells : {int(spatial_mask.sum())}/{spatial_mask.size} "
-        f"({100.0 * spatial_mask.mean():.2f}%)"
+        f"QC grid cells : {selected_cells}/{weights.size} "
+        f"({100.0 * selected_cells / weights.size:.2f}%)"
     )
 
     era5_native = prepare_era5(arguments.era5_file)
@@ -757,7 +797,7 @@ def main() -> int:
     )
     for variable in VARIABLES:
         values = np.asarray(era5_on_grid[variable].values)
-        qc_values = values[:, spatial_mask]
+        qc_values = values[:, weights > 0.0]
         print(
             f"  {variable:8s}: min={np.min(qc_values):.6g}, "
             f"mean={np.mean(qc_values):.6g}, max={np.max(qc_values):.6g}, "
@@ -785,7 +825,7 @@ def main() -> int:
                 era5_on_grid,
                 arguments.model,
                 arguments.scenario,
-                spatial_mask,
+                weights,
                 qc_region,
             )
         )
@@ -795,7 +835,7 @@ def main() -> int:
                 corrected[variable],
                 arguments.model,
                 arguments.scenario,
-                spatial_mask,
+                weights,
                 qc_region,
             )
         )
@@ -821,7 +861,7 @@ def main() -> int:
         "near_baseline_period": list(NEAR_PERIOD),
         "target_periods": {name: list(period) for name, period in TARGET_PERIODS.items()},
         "qc_region": qc_region,
-        "spatial_mask": mask_metadata,
+        "spatial_weights": weights_metadata,
         "ssrd_alignment": "radiation valid_time aligned to atmospheric time",
         "ssrd_conversion": "J m-2 mean daily accumulation divided by 86400 to W m-2",
         "wind_definition": "sqrt(monthly-mean u10^2 + monthly-mean v10^2)",

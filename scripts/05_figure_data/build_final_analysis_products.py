@@ -26,6 +26,7 @@ for _dir in (_OWN_DIR, _SCRIPTS_DIR / "common", _SCRIPTS_DIR / "03_bias_correcti
     if _dir.is_dir() and str(_dir) not in _sys.path:
         _sys.path.insert(0, str(_dir))
 from project_paths import PROJECT_ROOT, get_path  # noqa: E402
+from area_weights import area_weighted_mean, china_intersection_weights  # noqa: E402
 # -------------------------------------------------------------------
 
 import argparse
@@ -196,53 +197,70 @@ def required_paths(
     return paths
 
 
-def build_mask(lat: np.ndarray, lon: np.ndarray, shapefile: Path) -> np.ndarray:
-    if not shapefile.is_file():
-        raise FileNotFoundError(f"China shapefile does not exist: {shapefile}")
-    missing = [
-        str(shapefile.with_suffix(suffix))
-        for suffix in (".shx", ".dbf", ".prj")
-        if not shapefile.with_suffix(suffix).is_file()
-    ]
-    if missing:
-        raise FileNotFoundError("Missing shapefile sidecars: " + ", ".join(missing))
-    try:
-        import cartopy.io.shapereader as shpreader
-        from shapely.geometry import Point
-        from shapely.ops import unary_union
-    except ImportError as error:
-        raise RuntimeError(
-            "China masking requires cartopy and shapely in the pvwind environment."
-        ) from error
-    reader = shpreader.Reader(str(shapefile))
-    geometry = unary_union(list(reader.geometries()))
-    close = getattr(reader, "close", None)
-    if close is not None:
-        close()
-    mask = np.zeros((lat.size, lon.size), dtype=bool)
-    for i, latitude in enumerate(lat):
-        for j, longitude in enumerate(lon):
-            mask[i, j] = geometry.covers(Point(float(longitude), float(latitude)))
-    if not mask.any():
+def build_china_weights(lat: np.ndarray, lon: np.ndarray, shapefile: Path) -> np.ndarray:
+    """Per-cell China-overlap areas (km²) on a native model grid."""
+    result = china_intersection_weights(lat, lon, shapefile)
+    weights = result["china_intersection_area_km2"]
+    if not (weights > 0.0).any():
         raise ValueError("China shapefile selected zero grid cells")
-    return mask
+    return weights
 
 
-def spatial_weighted_mean(data: xr.DataArray, mask: np.ndarray) -> xr.DataArray:
+def spatial_weighted_mean(data: xr.DataArray, weights: np.ndarray) -> xr.DataArray:
+    """China-intersection-area-weighted national mean per time step."""
     array = data.transpose(..., "lat", "lon")
-    mask_da = xr.DataArray(mask, coords={"lat": array.lat, "lon": array.lon}, dims=("lat", "lon"))
-    weights = xr.DataArray(
-        np.cos(np.deg2rad(np.asarray(array.lat.values, dtype=np.float64))),
-        coords={"lat": array.lat},
-        dims="lat",
-    ).broadcast_like(mask_da)
-    valid_weights = weights.where(mask_da & np.isfinite(array))
-    numerator = (array * valid_weights).sum(("lat", "lon"), skipna=True)
-    denominator = valid_weights.sum(("lat", "lon"), skipna=True)
-    return xr.where(denominator > 0.0, numerator / denominator, np.nan)
+    values = np.asarray(array.values, dtype=np.float64)
+    if values.ndim != 3:
+        raise ValueError(f"Expected (time, lat, lon), got {values.shape}")
+    means = area_weighted_mean(values, weights)
+    return xr.DataArray(
+        means,
+        coords={"time": array.time},
+        dims="time",
+        name=data.name,
+    )
 
 
-def annual_native_series(path: Path, mask_cache: dict[tuple[bytes, bytes], np.ndarray], shapefile: Path) -> dict[str, np.ndarray]:
+def native_period_means(
+    path: Path,
+    weights_cache: dict[tuple[bytes, bytes], np.ndarray],
+    shapefile: Path,
+) -> dict[str, dict[str, float]]:
+    """Native-grid intersection-weighted national mean per period for one model.
+
+    Reads a single scenario energy file (1994-2100, 1284 months) and returns
+    ``{period_name: {variable: national_mean}}`` for every period in ``PERIODS``.
+    The 1994-2014 slice is the shared QM historical part, so the historical mean
+    is identical for both methods; the future periods come from 2040-2060 and
+    2080-2100.
+    """
+    with open_netcdf(path) as dataset:
+        missing = [name for name in TIME_SERIES_VARIABLES if name not in dataset]
+        if missing:
+            raise KeyError(f"{path}: missing variables {missing}")
+        years = np.asarray(dataset.time.dt.year.values, dtype=np.int64)
+        lat = np.asarray(dataset.lat.values, dtype=np.float64)
+        lon = np.asarray(dataset.lon.values, dtype=np.float64)
+        key = (lat.tobytes(), lon.tobytes())
+        if key not in weights_cache:
+            weights_cache[key] = build_china_weights(lat, lon, shapefile)
+        weights = weights_cache[key]
+        result: dict[str, dict[str, float]] = {}
+        for period_name, (start, end) in PERIODS.items():
+            indices = np.flatnonzero((years >= start) & (years <= end))
+            if indices.size == 0:
+                raise ValueError(f"{path}: no months in {period_name} {start}-{end}")
+            subset = dataset[list(TIME_SERIES_VARIABLES)].isel(time=indices)
+            result[period_name] = {}
+            for variable in TIME_SERIES_VARIABLES:
+                monthly = spatial_weighted_mean(subset[variable], weights)
+                result[period_name][variable] = float(
+                    np.nanmean(np.asarray(monthly.values, dtype=np.float64))
+                )
+        return result
+
+
+def annual_native_series(path: Path, weights_cache: dict[tuple[bytes, bytes], np.ndarray], shapefile: Path) -> dict[str, np.ndarray]:
     with open_netcdf(path) as dataset:
         missing = [name for name in TIME_SERIES_VARIABLES if name not in dataset]
         if missing:
@@ -255,13 +273,13 @@ def annual_native_series(path: Path, mask_cache: dict[tuple[bytes, bytes], np.nd
         lat = np.asarray(subset.lat.values, dtype=np.float64)
         lon = np.asarray(subset.lon.values, dtype=np.float64)
         key = (lat.tobytes(), lon.tobytes())
-        if key not in mask_cache:
-            mask_cache[key] = build_mask(lat, lon, shapefile)
-        mask = mask_cache[key]
+        if key not in weights_cache:
+            weights_cache[key] = build_china_weights(lat, lon, shapefile)
+        weights = weights_cache[key]
         output: dict[str, np.ndarray] = {}
         expected_years = np.arange(2015, 2101, dtype=np.int64)
         for variable in TIME_SERIES_VARIABLES:
-            monthly = spatial_weighted_mean(subset[variable], mask)
+            monthly = spatial_weighted_mean(subset[variable], weights)
             annual = monthly.groupby("time.year").mean("time", skipna=True)
             found_years = np.asarray(annual.year.values, dtype=np.int64)
             if not np.array_equal(found_years, expected_years):
@@ -306,7 +324,7 @@ def build_annual_tables(
 ) -> tuple[Path, Path]:
     model_rows: list[dict[str, object]] = []
     grouped: dict[tuple[str, ...], list[float]] = defaultdict(list)
-    mask_cache: dict[tuple[bytes, bytes], np.ndarray] = {}
+    weights_cache: dict[tuple[bytes, bytes], np.ndarray] = {}
     total = len(models) * len(scenarios) * len(METHODS)
     counter = 0
     for model in models:
@@ -316,7 +334,7 @@ def build_annual_tables(
                 print(f"  Annual series [{counter:03d}/{total:03d}] {model}/{scenario}/{method}")
                 series = annual_native_series(
                     energy_path(energy_root, model, scenario, method),
-                    mask_cache,
+                    weights_cache,
                     shapefile,
                 )
                 for variable in TIME_SERIES_VARIABLES:
@@ -359,17 +377,11 @@ def coord_values(dataset: xr.Dataset, name: str) -> list[str]:
     return [str(value) for value in dataset.coords[name].values.tolist()]
 
 
-def area_mean_map(data: xr.DataArray, china_mask: xr.DataArray) -> float:
-    mask = china_mask.astype(bool)
-    weights = xr.DataArray(
-        np.cos(np.deg2rad(np.asarray(data.lat.values, dtype=np.float64))),
-        coords={"lat": data.lat},
-        dims="lat",
-    ).broadcast_like(mask)
-    valid_weights = weights.where(mask & np.isfinite(data))
-    denominator = valid_weights.sum(("lat", "lon"), skipna=True)
-    value = (data * valid_weights).sum(("lat", "lon"), skipna=True) / denominator
-    return float(value.values)
+def area_mean_map(data: xr.DataArray, area_weights: xr.DataArray) -> float:
+    """Intersection-area-weighted national mean of a 1-degree map."""
+    values = np.asarray(data.transpose("lat", "lon").values, dtype=np.float64)
+    weights = np.asarray(area_weights.transpose("lat", "lon").values, dtype=np.float64)
+    return float(area_weighted_mean(values, weights))
 
 
 def paper_category(values: xr.DataArray) -> xr.DataArray:
@@ -398,9 +410,7 @@ def drop_selection_coords(values: xr.DataArray) -> xr.DataArray:
     return values.reset_coords(drop=True)
 
 
-def build_final_maps_and_summaries(
-    ensemble_root: Path, output_root: Path
-) -> tuple[Path, Path, Path]:
+def build_final_maps(ensemble_root: Path, output_root: Path) -> Path:
     period_path = ensemble_root / "multimodel_energy_period_maps_1deg.nc"
     change_path = ensemble_root / "multimodel_energy_change_maps_1deg.nc"
     difference_path = ensemble_root / "multimodel_method_difference_maps_1deg.nc"
@@ -416,8 +426,10 @@ def build_final_maps_and_summaries(
             if required not in dataset:
                 raise KeyError(f"{required} is missing from an ensemble input")
         for dataset in (period_source, change_source, difference_source, comp_source):
-            if "china_mask" not in dataset:
-                raise KeyError("china_mask is missing from an ensemble input")
+            if "china_intersection_area_km2" not in dataset:
+                raise KeyError("china_intersection_area_km2 is missing from an ensemble input")
+        if "gridcell_area_km2" not in period_source:
+            raise KeyError("gridcell_area_km2 is missing from the period maps input")
 
         period_mean = drop_selection_coords(
             period_source["period_value"].sel(statistic="mean").load()
@@ -458,7 +470,10 @@ def build_final_maps_and_summaries(
                 definition=list(PRIMARY_COMPLEMENTARITY), statistic="model_count"
             ).load()
         )
-        china_mask = period_source["china_mask"].load()
+        gridcell_area = period_source["gridcell_area_km2"].load()
+        china_intersects = period_source["china_intersects"].load()
+        china_intersection_area = period_source["china_intersection_area_km2"].load()
+        china_area_fraction = period_source["china_area_fraction"].load()
 
     wpd = drop_selection_coords(period_mean.sel(energy_variable="wpd"))
     log10_wpd = xr.where(wpd > 0.0, np.log10(wpd), np.nan).rename("wpd_log10")
@@ -486,7 +501,10 @@ def build_final_maps_and_summaries(
             "spearman_rho": rho,
             "spearman_category": categories,
             "spearman_model_count": rho_count,
-            "china_mask": china_mask,
+            "gridcell_area_km2": gridcell_area,
+            "china_intersects": china_intersects,
+            "china_intersection_area_km2": china_intersection_area,
+            "china_area_fraction": china_area_fraction,
         }
     )
     final_maps.attrs.update(
@@ -495,53 +513,110 @@ def build_final_maps_and_summaries(
         periods="1994-2014, 2040-2060, 2080-2100 inclusive",
         wpd_log_rule="log10 is display-only for the paper Fig. 7 analogue",
         change_rule="each model change first, then equal-weight model ensemble",
-        national_percent_rule="reported separately as percent change of China area mean",
+        national_percent_rule=(
+            "official national statistics are native-grid model-first "
+            "intersection-area-weighted period means (definition 2); this NetCDF "
+            "only holds the common 1-degree maps and their map summary"
+        ),
         primary_complementarity="seasonal_full (84 samples) and monthly_full (252 samples)",
     )
     maps_path = output_root / "final_B_D_figure_maps_1deg.nc"
     write_dataset(maps_path, final_maps)
+    return maps_path
+
+
+def build_national_change_tables(
+    energy_root: Path,
+    output_root: Path,
+    shapefile: Path,
+    models: list[str],
+    scenarios: list[str],
+    maps_path: Path,
+) -> tuple[Path, Path]:
+    """National change + D-B summaries from native-grid model-first means.
+
+    ``historical_china_area_mean`` / ``future_china_area_mean`` and the derived
+    ``percent_change_of_area_mean`` are the equal-weight 17-model ensemble of each
+    model's native-grid intersection-area-weighted period mean (definition 2) —
+    NOT the 1-degree common-grid map mean.  The 1-degree common-grid map mean is
+    still reported, explicitly labelled, as ``common_grid_map_*_area_mean``.
+    """
+    # 1. Native-grid per-model period means -> equal-weight ensemble.
+    weights_cache: dict[tuple[bytes, bytes], np.ndarray] = {}
+    grouped: dict[tuple[str, str, str, str], list[float]] = defaultdict(list)
+    total = len(models) * len(scenarios) * len(METHODS)
+    counter = 0
+    for model in models:
+        for scenario in scenarios:
+            for method in METHODS:
+                counter += 1
+                print(
+                    f"  Native period means [{counter:03d}/{total:03d}] "
+                    f"{model}/{scenario}/{method}"
+                )
+                means = native_period_means(
+                    energy_path(energy_root, model, scenario, method),
+                    weights_cache,
+                    shapefile,
+                )
+                for period_name in PERIODS:
+                    for variable in ENERGY_VARIABLES:
+                        grouped[(scenario, method, period_name, variable)].append(
+                            means[period_name][variable]
+                        )
+    ensemble = {key: float(np.mean(values)) for key, values in grouped.items()}
+
+    # 2. Common 1-degree grid, for the map summary + gridwise-vs-national gap.
+    with open_netcdf(maps_path) as maps:
+        period_mean = maps["period_mean"].load()
+        gridwise_percent = maps["gridwise_relative_change_percent"].load()
+        china_intersection_area = maps["china_intersection_area_km2"].load()
 
     summary_rows: list[dict[str, object]] = []
-    for scenario in coord_values(final_maps, "scenario"):
-        for method in coord_values(final_maps, "method"):
-            for variable in coord_values(final_maps, "energy_variable"):
-                historical = final_maps["period_mean"].sel(
-                    {
-                        "scenario": scenario,
-                        "method": method,
-                        "period": "historical",
-                        "energy_variable": variable,
-                    }
-                )
-                historical_mean = area_mean_map(historical, final_maps.china_mask)
-                for future_period in FUTURE_PERIODS:
-                    future = final_maps["period_mean"].sel(
+    for scenario in scenarios:
+        for method in METHODS:
+            for variable in ENERGY_VARIABLES:
+                historical = ensemble[(scenario, method, "historical", variable)]
+                map_historical = area_mean_map(
+                    period_mean.sel(
                         {
                             "scenario": scenario,
                             "method": method,
-                            "period": future_period,
+                            "period": "historical",
                             "energy_variable": variable,
                         }
-                    )
-                    future_mean = area_mean_map(future, final_maps.china_mask)
-                    absolute = future_mean - historical_mean
+                    ),
+                    china_intersection_area,
+                )
+                for future_period in FUTURE_PERIODS:
+                    future = ensemble[(scenario, method, future_period, variable)]
+                    absolute = future - historical
                     national_percent = (
-                        100.0 * absolute / historical_mean
-                        if abs(historical_mean) > 1.0e-12
+                        100.0 * absolute / historical
+                        if abs(historical) > 1.0e-12
                         else math.nan
                     )
-                    grid_percent_map = final_maps[
-                        "gridwise_relative_change_percent"
-                    ].sel(
-                        {
-                            "scenario": scenario,
-                            "method": method,
-                            "future_period": future_period,
-                            "energy_variable": variable,
-                        }
+                    map_future = area_mean_map(
+                        period_mean.sel(
+                            {
+                                "scenario": scenario,
+                                "method": method,
+                                "period": future_period,
+                                "energy_variable": variable,
+                            }
+                        ),
+                        china_intersection_area,
                     )
                     area_mean_grid_percent = area_mean_map(
-                        grid_percent_map, final_maps.china_mask
+                        gridwise_percent.sel(
+                            {
+                                "scenario": scenario,
+                                "method": method,
+                                "future_period": future_period,
+                                "energy_variable": variable,
+                            }
+                        ),
+                        china_intersection_area,
                     )
                     summary_rows.append(
                         {
@@ -555,14 +630,20 @@ def build_final_maps_and_summaries(
                             ),
                             "variable": variable,
                             "unit": "W m-2",
-                            "historical_china_area_mean": historical_mean,
-                            "future_china_area_mean": future_mean,
+                            "national_mean_source": (
+                                "equal-weight 17-model ensemble of native-grid "
+                                "intersection-area-weighted period means"
+                            ),
+                            "historical_china_area_mean": historical,
+                            "future_china_area_mean": future,
                             "absolute_change_of_area_mean": absolute,
                             "percent_change_of_area_mean": national_percent,
                             "area_mean_of_gridwise_percent_change": area_mean_grid_percent,
-                            "percentage_definition_gap_pp": (
+                            "gridwise_percent_mean_minus_national_percent_change_pp": (
                                 area_mean_grid_percent - national_percent
                             ),
+                            "common_grid_map_historical_area_mean": map_historical,
+                            "common_grid_map_future_area_mean": map_future,
                         }
                     )
     summary_path = output_root / "final_national_change_summary.csv"
@@ -573,9 +654,9 @@ def build_final_maps_and_summaries(
         (row["scenario"], row["future_period"], row["variable"], row["method"]): row
         for row in summary_rows
     }
-    for scenario in coord_values(final_maps, "scenario"):
+    for scenario in scenarios:
         for future_period in FUTURE_PERIODS:
-            for variable in coord_values(final_maps, "energy_variable"):
+            for variable in ENERGY_VARIABLES:
                 paper = lookup[(scenario, future_period, variable, "paper_qm")]
                 optimized = lookup[(scenario, future_period, variable, "optimized")]
                 method_rows.append(
@@ -584,6 +665,7 @@ def build_final_maps_and_summaries(
                         "future_period": future_period,
                         "variable": variable,
                         "comparison": "D_minus_B",
+                        "national_mean_source": paper["national_mean_source"],
                         "optimized_minus_paper_period_mean": (
                             optimized["future_china_area_mean"]
                             - paper["future_china_area_mean"]
@@ -604,7 +686,7 @@ def build_final_maps_and_summaries(
                 )
     method_path = output_root / "final_D_minus_B_summary.csv"
     write_csv(method_path, method_rows)
-    return maps_path, summary_path, method_path
+    return summary_path, method_path
 
 
 def main() -> int:
@@ -694,8 +776,14 @@ def main() -> int:
             models,
             list(arguments.scenarios),
         )
-    maps_path, national_path, method_path = build_final_maps_and_summaries(
-        ensemble_root, output_root
+    maps_path = build_final_maps(ensemble_root, output_root)
+    national_path, method_path = build_national_change_tables(
+        energy_root,
+        output_root,
+        shapefile,
+        models,
+        list(arguments.scenarios),
+        maps_path,
     )
     manifest = {
         "created_utc": datetime.now(timezone.utc).isoformat(),
@@ -710,12 +798,18 @@ def main() -> int:
         "excluded_routes": ["A", "C"],
         "periods": PERIODS,
         "annual_period": "2015-2100",
-        "annual_spatial_weighting": "cos(latitude) within China mask",
+        "annual_spatial_weighting": "geodesic intersection area with the China boundary (WGS84)",
         "annual_temporal_weighting": "simple mean of 12 monthly means",
         "primary_complementarity": list(PRIMARY_COMPLEMENTARITY),
         "national_percentage_definition": (
             "100 * (future China area mean - historical China area mean) / "
             "historical China area mean"
+        ),
+        "national_mean_source": (
+            "equal-weight 17-model ensemble of native-grid "
+            "intersection-area-weighted period means (definition 2); the "
+            "common 1-degree map mean is reported separately in the CSV as "
+            "common_grid_map_*_area_mean"
         ),
         "map_percentage_definition": (
             "each model grid-cell percentage change first, then equal-weight ensemble"

@@ -1,13 +1,13 @@
-﻿scenario,future_period,variable,comparison,optimized_minus_paper_period_mean,optimized_minus_paper_period_mean_percent,difference_in_national_change_percentage_points
-ssp126,mid_century,pvpot,D_minus_B,0.04945527821880091,0.024381039433385432,0.02472384914251724
-ssp126,mid_century,wpd,D_minus_B,1.0222865943154673,3.5698881319228937,3.320491655366616
-ssp126,late_century,pvpot,D_minus_B,0.05134327585625442,0.02518111793121669,0.025667703276009535
-ssp126,late_century,wpd,D_minus_B,1.0315381965258723,3.576920925112792,3.3505418077497557
-ssp245,mid_century,pvpot,D_minus_B,0.03312724605427775,0.01658149187033775,0.016561084346334673
-ssp245,mid_century,wpd,D_minus_B,0.9389013849472434,3.235214694504762,3.049647947322506
-ssp245,late_century,pvpot,D_minus_B,0.020156680891687984,0.010023967917671683,0.010076795754239587
-ssp245,late_century,wpd,D_minus_B,1.1242234777787417,3.9685508516807078,3.6515931026476807
-ssp585,mid_century,pvpot,D_minus_B,0.017137786512961384,0.008593882997742774,0.008567579915505219
-ssp585,mid_century,wpd,D_minus_B,0.7764727651034278,2.659690256105529,2.5220631391256867
-ssp585,late_century,pvpot,D_minus_B,0.003482970000561636,0.001758476229896111,0.0017412180855765902
-ssp585,late_century,wpd,D_minus_B,1.0365895421184312,3.717174778201926,3.3669490960598374
+﻿scenario,future_period,variable,comparison,national_mean_source,optimized_minus_paper_period_mean,optimized_minus_paper_period_mean_percent,difference_in_national_change_percentage_points
+ssp126,mid_century,pvpot,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,0.050112250730620644,0.02470186717773437,0.025052722298079422
+ssp126,mid_century,wpd,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,1.0219516301533176,3.580884808482243,3.33068345396766
+ssp126,late_century,pvpot,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,0.05237778536226756,0.025685901954575208,0.02618533576396498
+ssp126,late_century,wpd,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,1.0472385144099512,3.649874978772605,3.4130969503709387
+ssp245,mid_century,pvpot,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,0.03390198734115302,0.01696811962668132,0.01694869142430938
+ssp245,mid_century,wpd,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,0.9428768940565888,3.262315294147222,3.0729678171671972
+ssp245,late_century,pvpot,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,0.02131882071785185,0.010600716303721391,0.010657962621513861
+ssp245,late_century,wpd,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,1.1335880683645705,4.022666374958672,3.6945222371733992
+ssp585,mid_century,pvpot,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,0.017866644824295008,0.008958722351137816,0.008932109108162167
+ssp585,mid_century,wpd,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,0.7740930410608016,2.661282282545119,2.5228776075301327
+ssp585,late_century,pvpot,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,0.004632139869698904,0.0023383700237467053,0.0023157553713810675
+ssp585,late_century,wpd,D_minus_B,equal-weight 17-model ensemble of native-grid intersection-area-weighted period means,1.0309898823240893,3.710728129974905,3.3601403833073196

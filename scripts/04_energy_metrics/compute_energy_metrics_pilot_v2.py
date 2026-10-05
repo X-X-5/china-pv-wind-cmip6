@@ -86,6 +86,15 @@ except ImportError as error:  # pragma: no cover - environment-specific
         "scipy is required. Install it in the pvwind conda environment."
     ) from error
 
+# Shared intersection-area weighting (scripts/common/area_weights.py).  The
+# centre-point mask and cos(latitude) weight are retired as formal statistics.
+from area_weights import (  # noqa: E402
+    area_weighted_mean as _area_weighted_mean,
+    area_weighted_median as _area_weighted_median,
+    china_intersection_weights as _china_intersection_weights,
+    geodesic_gridcell_areas as _geodesic_gridcell_areas,
+)
+
 
 VARIABLES = ("tas", "rsds", "sfcWind")
 METHODS = ("paper_qm", "optimized")
@@ -621,17 +630,28 @@ def load_inputs(
     return baselines, corrected
 
 
-def build_mask(
+def build_china_weights(
     target: xr.DataArray,
     shapefile_path: Path | None,
 ) -> tuple[np.ndarray, str, dict[str, object]]:
+    """Return per-cell China-overlap areas (km²) for intersection-area weighting.
+
+    The returned array is ``china_intersection_area_km2``: positive where a grid
+    cell overlaps the China boundary and zero elsewhere.  ``weights > 0`` selects
+    the analysis cells; the weights themselves are the geographic weights used in
+    every national spatial mean.  No centre-point mask is retained as a statistic.
+    """
     shape = (target.sizes["lat"], target.sizes["lon"])
+    latitudes = np.asarray(target.lat.values, dtype=np.float64)
+    longitudes = np.asarray(target.lon.values, dtype=np.float64)
     if shapefile_path is None:
-        return np.ones(shape, dtype=bool), "rectangular_domain", {
+        weights = _geodesic_gridcell_areas(latitudes, longitudes)
+        return weights, "rectangular_domain", {
             "shapefile": None,
-            "selected_grid_cells": int(np.prod(shape)),
+            "selected_grid_cells": int((weights > 0.0).sum()),
             "total_grid_cells": int(np.prod(shape)),
-            "selection_rule": "all rectangular-domain grid-cell centres",
+            "selection_rule": "all rectangular-domain cells, weighted by geodesic cell area",
+            "weighting": "geodesic grid-cell area (WGS84)",
         }
 
     if not shapefile_path.is_file():
@@ -648,39 +668,24 @@ def build_mask(
     ).upper()
     if "WGS" not in projection and "4326" not in projection:
         raise ValueError("China shapefile must use WGS84 longitude/latitude coordinates")
-    try:
-        import cartopy.io.shapereader as shpreader
-        from shapely.geometry import Point
-        from shapely.ops import unary_union
-    except ImportError as error:
-        raise RuntimeError(
-            "China-mask QC requires cartopy and shapely. Install them or use "
-            "--rectangular-domain."
-        ) from error
 
-    reader = shpreader.Reader(str(shapefile_path))
-    geometries = list(reader.geometries())
-    close = getattr(reader, "close", None)
-    if close is not None:
-        close()
-    if not geometries:
-        raise ValueError(f"No geometry found in {shapefile_path}")
-    geometry = unary_union(geometries)
-    latitudes = np.asarray(target.lat.values, dtype=np.float64)
-    longitudes = np.asarray(target.lon.values, dtype=np.float64)
-    mask = np.zeros(shape, dtype=bool)
-    for i, latitude in enumerate(latitudes):
-        for j, longitude in enumerate(longitudes):
-            mask[i, j] = geometry.covers(Point(float(longitude), float(latitude)))
-    if not mask.any():
-        raise ValueError("China shapefile selected zero target-grid cells")
-    return mask, "china_mask", {
+    result = _china_intersection_weights(latitudes, longitudes, shapefile_path)
+    weights = result["china_intersection_area_km2"]
+    counts = result["counts"]
+    if int(counts["intersects"]) == 0:
+        raise ValueError("China shapefile overlaps zero target-grid cells")
+    return weights, "china_intersection", {
         "shapefile": str(shapefile_path),
-        "selected_grid_cells": int(mask.sum()),
-        "total_grid_cells": int(mask.size),
-        "selected_fraction": float(mask.mean()),
-        "selection_rule": "grid-cell centre covered by China polygon",
-        "geometry_bounds": [float(value) for value in geometry.bounds],
+        "selected_grid_cells": int(counts["intersects"]),
+        "total_grid_cells": int(counts["total"]),
+        "selected_fraction": float(counts["intersects"] / counts["total"]),
+        "selection_rule": "grid-cell area intersecting the China polygon",
+        "weighting": "geodesic intersection area with the China boundary (WGS84)",
+        "fully_inside_cells": int(counts["fully_inside"]),
+        "partial_cells": int(counts["partial"]),
+        "outside_cells": int(counts["outside"]),
+        "china_boundary_area_km2": float(result["china_boundary_area_km2"]),
+        "china_intersection_total_km2": float(weights.sum()),
     }
 
 
@@ -818,12 +823,14 @@ def compute_energy(meteorology: xr.Dataset, hub_height_m: float) -> xr.Dataset:
     return output
 
 
-def mask_values(data: xr.DataArray, spatial_mask: np.ndarray) -> np.ndarray:
+def mask_values(data: xr.DataArray, spatial_weights: np.ndarray) -> np.ndarray:
+    """Flatten per-cell values over the China-intersecting cells (weights > 0)."""
     values = np.asarray(data.values, dtype=np.float64)
+    selection = spatial_weights > 0.0
     if values.ndim == 2:
-        return values[spatial_mask]
+        return values[selection]
     if values.ndim == 3:
-        return values[:, spatial_mask]
+        return values[:, selection]
     raise ValueError(f"Expected 2-D or 3-D data, got shape={values.shape}")
 
 
@@ -857,14 +864,10 @@ def statistics(values: np.ndarray) -> dict[str, float | int]:
     }
 
 
-def area_weighted_mean_map(data: xr.DataArray, spatial_mask: np.ndarray) -> float:
+def area_weighted_mean_map(data: xr.DataArray, spatial_weights: np.ndarray) -> float:
+    """China-intersection-area-weighted spatial mean of a 2-D (lat, lon) map."""
     values = np.asarray(data.values, dtype=np.float64)
-    latitudes = np.asarray(data.lat.values, dtype=np.float64)
-    weights = np.cos(np.deg2rad(latitudes))[:, None] * spatial_mask
-    valid = np.isfinite(values) & spatial_mask
-    weighted = np.where(valid, values * weights, 0.0)
-    denominator = np.where(valid, weights, 0.0).sum()
-    return float(weighted.sum() / denominator) if denominator > 0.0 else math.nan
+    return float(_area_weighted_mean(values, spatial_weights))
 
 
 def select_years(data: xr.DataArray | xr.Dataset, start: int, end: int):
@@ -875,7 +878,7 @@ def select_years(data: xr.DataArray | xr.Dataset, start: int, end: int):
 def make_qc_rows(
     method: str,
     energy: xr.Dataset,
-    spatial_mask: np.ndarray,
+    spatial_weights: np.ndarray,
     qc_region: str,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
@@ -888,7 +891,7 @@ def make_qc_rows(
             "time_steps": int(output.sizes["time"]),
             "unit": str(output[variable].attrs.get("units", "")),
         }
-        row.update(statistics(mask_values(output[variable], spatial_mask)))
+        row.update(statistics(mask_values(output[variable], spatial_weights)))
         rows.append(row)
     return rows
 
@@ -896,7 +899,7 @@ def make_qc_rows(
 def make_period_rows(
     method: str,
     energy: xr.Dataset,
-    spatial_mask: np.ndarray,
+    spatial_weights: np.ndarray,
     qc_region: str,
     periods: tuple[tuple[str, int, int], ...] = PERIODS,
 ) -> list[dict[str, object]]:
@@ -923,7 +926,7 @@ def make_period_rows(
                 "unit": str(data.attrs.get("units", "")),
                 "area_weighted_spatial_mean": math.nan,
             }
-            sample_row.update(statistics(mask_values(data, spatial_mask)))
+            sample_row.update(statistics(mask_values(data, spatial_weights)))
             rows.append(sample_row)
 
             mean_map = data.mean("time", skipna=True)
@@ -937,23 +940,23 @@ def make_period_rows(
                 "aggregation": "period_mean_map",
                 "qc_region": qc_region,
                 "unit": str(data.attrs.get("units", "")),
-                "area_weighted_spatial_mean": area_weighted_mean_map(mean_map, spatial_mask),
+                "area_weighted_spatial_mean": area_weighted_mean_map(mean_map, spatial_weights),
             }
-            map_row.update(statistics(mask_values(mean_map, spatial_mask)))
+            map_row.update(statistics(mask_values(mean_map, spatial_weights)))
             rows.append(map_row)
     return rows
 
 
 def make_height_sensitivity_rows(
     method: str,
-    meteorology: xr.Dataset,
+    wind_10m: xr.DataArray,
     heights: list[float],
-    spatial_mask: np.ndarray,
+    spatial_weights: np.ndarray,
     qc_region: str,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for height in sorted(set(float(value) for value in heights)):
-        _, wind_hub = wind_at_height(meteorology["sfcWind"], height)
+        _, wind_hub = wind_at_height(wind_10m, height)
         wpd = 0.5 * AIR_DENSITY_KG_M3 * wind_hub**3
         for period_name, start, end in PERIODS:
             period = select_years(wpd, start, end)
@@ -965,9 +968,9 @@ def make_height_sensitivity_rows(
                 "end_year": end,
                 "hub_height_m": height,
                 "qc_region": qc_region,
-                "area_weighted_mean_wpd": area_weighted_mean_map(mean_map, spatial_mask),
+                "area_weighted_mean_wpd": area_weighted_mean_map(mean_map, spatial_weights),
             }
-            row.update({f"wpd_{key}": value for key, value in statistics(mask_values(mean_map, spatial_mask)).items()})
+            row.update({f"wpd_{key}": value for key, value in statistics(mask_values(mean_map, spatial_weights)).items()})
             rows.append(row)
     reference = {
         (row["method"], row["period"]): row["area_weighted_mean_wpd"]
@@ -1092,10 +1095,80 @@ def category_name(value: float) -> str | None:
     return "very_strong_similarity"
 
 
+_CATEGORY_NAMES = (
+    "very_strong_complementarity",  # 1
+    "strong_complementarity",       # 2
+    "moderate_complementarity",     # 3
+    "weak_complementarity",         # 4
+    "weak_similarity",              # 5
+    "moderate_similarity",          # 6
+    "strong_similarity",            # 7
+    "very_strong_similarity",       # 8
+)
+
+
+def category_codes(values: np.ndarray) -> np.ndarray:
+    """Vectorized 1..8 complementarity class, matching :func:`category_name`.
+
+    ``rho == 0`` is class 5 (weak similarity), exactly as in ``category_name``.
+    Non-finite values map to NaN.
+    """
+    data = np.asarray(values, dtype=np.float64)
+    codes = np.full(data.shape, np.nan, dtype=np.float64)
+    codes = np.where(data < -0.9, 1.0, codes)
+    codes = np.where((data >= -0.9) & (data < -0.6), 2.0, codes)
+    codes = np.where((data >= -0.6) & (data < -0.3), 3.0, codes)
+    codes = np.where((data >= -0.3) & (data < 0.0), 4.0, codes)
+    codes = np.where((data >= 0.0) & (data < 0.3), 5.0, codes)
+    codes = np.where((data >= 0.3) & (data < 0.6), 6.0, codes)
+    codes = np.where((data >= 0.6) & (data < 0.9), 7.0, codes)
+    codes = np.where(data >= 0.9, 8.0, codes)
+    return codes
+
+
+def complementarity_summary_row(
+    method: str,
+    period_name: str,
+    start: int,
+    end: int,
+    definition: str,
+    total: int,
+    minimum: int,
+    rho: np.ndarray,
+    spatial_weights: np.ndarray,
+    qc_region: str,
+) -> dict[str, object]:
+    """Area-weighted national aggregation of a per-cell Spearman-rho map."""
+    valid = np.isfinite(rho) & (spatial_weights > 0.0)
+    valid_area = np.where(valid, spatial_weights, 0.0)
+    total_area = float(valid_area.sum())
+    codes = category_codes(rho)
+    row: dict[str, object] = {
+        "method": method,
+        "period": period_name,
+        "start_year": start,
+        "end_year": end,
+        "definition": definition,
+        "expected_samples": total,
+        "minimum_valid_samples": minimum,
+        "qc_region": qc_region,
+        "valid_grid_cells": int(valid.sum()),
+        "missing_grid_cells": int((spatial_weights > 0.0).sum() - valid.sum()),
+        "spatial_median_rho": _area_weighted_median(rho, spatial_weights),
+        "spatial_mean_rho": float(_area_weighted_mean(rho, spatial_weights)),
+    }
+    for index, name in enumerate(_CATEGORY_NAMES, start=1):
+        area_in_category = float((valid_area * (codes == index)).sum())
+        row[f"{name}_percent"] = (
+            100.0 * area_in_category / total_area if total_area > 0.0 else math.nan
+        )
+    return row
+
+
 def compute_complementarity(
     method: str,
     energy: xr.Dataset,
-    spatial_mask: np.ndarray,
+    spatial_weights: np.ndarray,
     qc_region: str,
     periods: tuple[tuple[str, int, int], ...] = PERIODS,
 ) -> tuple[xr.Dataset, list[dict[str, object]]]:
@@ -1107,16 +1180,6 @@ def compute_complementarity(
     )
     result_parts = []
     summary_rows: list[dict[str, object]] = []
-    categories = (
-        "very_strong_complementarity",
-        "strong_complementarity",
-        "moderate_complementarity",
-        "weak_complementarity",
-        "weak_similarity",
-        "moderate_similarity",
-        "strong_similarity",
-        "very_strong_similarity",
-    )
     for period_name, start, end in periods:
         monthly = select_years(energy[["pvpot", "wpd"]], start, end)
         if monthly.sizes["time"] != 252:
@@ -1147,32 +1210,20 @@ def compute_complementarity(
             ).expand_dims(period=[period_name], definition=[definition])
             result_parts.append(piece)
 
-            selected = rho[spatial_mask]
-            finite = selected[np.isfinite(selected)]
-            counts_by_category = {name: 0 for name in categories}
-            for value in finite:
-                name = category_name(float(value))
-                if name is not None:
-                    counts_by_category[name] += 1
-            row: dict[str, object] = {
-                "method": method,
-                "period": period_name,
-                "start_year": start,
-                "end_year": end,
-                "definition": definition,
-                "expected_samples": total,
-                "minimum_valid_samples": minimum,
-                "qc_region": qc_region,
-                "valid_grid_cells": int(finite.size),
-                "missing_grid_cells": int(spatial_mask.sum() - finite.size),
-                "spatial_median_rho": float(np.median(finite)) if finite.size else math.nan,
-                "spatial_mean_rho": float(np.mean(finite)) if finite.size else math.nan,
-            }
-            for name in categories:
-                row[f"{name}_percent"] = (
-                    100.0 * counts_by_category[name] / finite.size if finite.size else math.nan
+            summary_rows.append(
+                complementarity_summary_row(
+                    method,
+                    period_name,
+                    start,
+                    end,
+                    definition,
+                    total,
+                    minimum,
+                    rho,
+                    spatial_weights,
+                    qc_region,
                 )
-            summary_rows.append(row)
+            )
     output = xr.combine_by_coords(result_parts, combine_attrs="drop_conflicts")
     output.attrs.update(
         method=method,
@@ -1190,7 +1241,7 @@ def compute_complementarity(
 
 def make_historical_baseline_rows(
     baseline_energies: dict[str, xr.Dataset],
-    spatial_mask: np.ndarray,
+    spatial_weights: np.ndarray,
     qc_region: str,
 ) -> list[dict[str, object]]:
     """Compare historical-QM and ERA5 energy diagnostics for 1994-2014."""
@@ -1221,14 +1272,14 @@ def make_historical_baseline_rows(
                 "unit": str(data.attrs.get("units", "")),
                 "qc_region": qc_region,
                 "area_weighted_spatial_mean": area_weighted_mean_map(
-                    mean_map, spatial_mask
+                    mean_map, spatial_weights
                 ),
             }
             row.update(
                 {
                     f"all_samples_{key}": value
                     for key, value in statistics(
-                        mask_values(data, spatial_mask)
+                        mask_values(data, spatial_weights)
                     ).items()
                 }
             )
@@ -1236,7 +1287,7 @@ def make_historical_baseline_rows(
                 {
                     f"mean_map_{key}": value
                     for key, value in statistics(
-                        mask_values(mean_map, spatial_mask)
+                        mask_values(mean_map, spatial_weights)
                     ).items()
                 }
             )
@@ -1262,29 +1313,18 @@ def make_historical_baseline_rows(
 
 def area_weighted_time_series(
     data: xr.DataArray,
-    spatial_mask: np.ndarray,
+    spatial_weights: np.ndarray,
 ) -> np.ndarray:
+    """China-intersection-area-weighted national mean per time step."""
     values = np.asarray(data.values, dtype=np.float64)
     if values.ndim != 3:
         raise ValueError(f"Expected (time, lat, lon), got {values.shape}")
-    latitude_weights = np.cos(np.deg2rad(np.asarray(data.lat.values)))[:, None]
-    weights = latitude_weights * spatial_mask
-    valid = np.isfinite(values) & spatial_mask[None, :, :]
-    numerator = np.where(valid, values * weights[None, :, :], 0.0).sum(
-        axis=(1, 2)
-    )
-    denominator = np.where(valid, weights[None, :, :], 0.0).sum(axis=(1, 2))
-    return np.divide(
-        numerator,
-        denominator,
-        out=np.full(numerator.shape, np.nan, dtype=np.float64),
-        where=denominator > 0.0,
-    )
+    return _area_weighted_mean(values, spatial_weights)
 
 
 def make_transition_rows(
     method_energies: dict[str, xr.Dataset],
-    spatial_mask: np.ndarray,
+    spatial_weights: np.ndarray,
     qc_region: str,
 ) -> list[dict[str, object]]:
     """Diagnose 2010-2020 same-calendar-month anomalies around 2014/2015."""
@@ -1312,10 +1352,10 @@ def make_transition_rows(
         )
         for variable in variables:
             historical_series = area_weighted_time_series(
-                historical[variable], spatial_mask
+                historical[variable], spatial_weights
             )
             transition_series = area_weighted_time_series(
-                transition[variable], spatial_mask
+                transition[variable], spatial_weights
             )
             climatology: dict[int, tuple[float, float, int]] = {}
             for month in range(1, 13):
@@ -1428,8 +1468,8 @@ def print_inspection(
     if paths["china_shapefile"] is not None:
         print(f"China boundary : {paths['china_shapefile']}")
     print(
-        f"QC grid cells  : {int(mask.sum())}/{int(mask.size)} "
-        f"({100.0 * mask.mean():.2f}%)"
+        f"QC grid cells  : {int((mask > 0.0).sum())}/{int(mask.size)} "
+        f"({100.0 * (mask > 0.0).mean():.2f}%)"
     )
     print("History output : historical QM and ERA5 sensitivity")
     print("Raw CMIP6      : internal QM-fitting input; no Raw energy baseline output")
@@ -1474,7 +1514,7 @@ def main() -> int:
             arguments.upper,
             arguments.n_quantiles,
         )
-        spatial_mask, qc_region, mask_metadata = build_mask(
+        spatial_weights, qc_region, mask_metadata = build_china_weights(
             historical_baselines["qm_historical"]["tas"],
             paths["china_shapefile"],
         )
@@ -1484,7 +1524,7 @@ def main() -> int:
             input_paths,
             historical_baselines,
             corrected,
-            spatial_mask,
+            spatial_weights,
             qc_region,
             mask_metadata,
         )
@@ -1527,7 +1567,7 @@ def main() -> int:
             complementarity, rows = compute_complementarity(
                 baseline,
                 energy_with_support,
-                spatial_mask,
+                spatial_weights,
                 qc_region,
                 periods=historical_period,
             )
@@ -1573,21 +1613,21 @@ def main() -> int:
             write_dataset(energy_path, energy_output)
             print(f"  Monthly energy: {energy_path}")
 
-            all_qc_rows.extend(make_qc_rows(method, energy_output, spatial_mask, qc_region))
+            all_qc_rows.extend(make_qc_rows(method, energy_output, spatial_weights, qc_region))
             all_period_rows.extend(
-                make_period_rows(method, energy_output, spatial_mask, qc_region)
+                make_period_rows(method, energy_output, spatial_weights, qc_region)
             )
             all_height_rows.extend(
                 make_height_sensitivity_rows(
                     method,
-                    meteorology,
+                    meteorology["sfcWind"],
                     list(arguments.sensitivity_heights),
-                    spatial_mask,
+                    spatial_weights,
                     qc_region,
                 )
             )
             complementarity, complementarity_rows = compute_complementarity(
-                method, energy_with_support, spatial_mask, qc_region
+                method, energy_with_support, spatial_weights, qc_region
             )
             complementarity_path = output_root / (
                 f"complementarity_{arguments.model}_{arguments.scenario}_{method}.nc"
@@ -1610,10 +1650,10 @@ def main() -> int:
         )
         transition_path = output_root / "historical_future_transition.csv"
         historical_baseline_rows = make_historical_baseline_rows(
-            baseline_energies, spatial_mask, qc_region
+            baseline_energies, spatial_weights, qc_region
         )
         transition_rows = make_transition_rows(
-            method_energies, spatial_mask, qc_region
+            method_energies, spatial_weights, qc_region
         )
         write_csv(qc_path, all_qc_rows)
         write_csv(period_path, all_period_rows)

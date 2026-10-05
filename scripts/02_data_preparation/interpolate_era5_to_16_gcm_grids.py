@@ -8,6 +8,7 @@ for _dir in (_OWN_DIR, _SCRIPTS_DIR / "common", _SCRIPTS_DIR / "03_bias_correcti
         _sys.path.insert(0, str(_dir))
 from project_paths import PROJECT_ROOT, get_path  # noqa: E402
 # -------------------------------------------------------------------
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -591,7 +592,36 @@ def verify_saved_file(
         ds.close()
 
 
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Interpolate the ERA5 reference onto each model's clipped grid."
+        )
+    )
+
+    parser.add_argument(
+        "--models",
+        nargs="*",
+        default=None,
+        help=(
+            "Optional subset of model names to process (default: all models "
+            "in the script's MODELS list)."
+        ),
+    )
+
+    return parser.parse_args()
+
+
 def main():
+
+    args = parse_args()
+
+    models = (
+        args.models
+        if args.models
+        else MODELS
+    )
 
     print()
     print("=" * 120)
@@ -659,7 +689,7 @@ def main():
         )
 
         for index, model in enumerate(
-            MODELS,
+            models,
             start=1,
         ):
 
@@ -667,7 +697,7 @@ def main():
             print("-" * 120)
 
             print(
-                f"MODEL {index}/{len(MODELS)}: "
+                f"MODEL {index}/{len(models)}: "
                 f"{model}"
             )
 
@@ -799,7 +829,7 @@ def main():
     print("=" * 120)
 
     print(
-        f"Models: {len(MODELS)}"
+        f"Models: {len(models)}"
     )
 
     print(

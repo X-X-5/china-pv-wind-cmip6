@@ -1,6 +1,6 @@
 # Public Release File Manifest (Allow / Deny)
 
-Date: 2026-10-03
+Date: 2026-10-05
 
 This manifest defines, file-by-file, what is recommended to **track** (commit)
 and what is **ignored** when the project is published to GitHub. It is the
@@ -46,7 +46,7 @@ placed on the deny list (kept local-only, not modified in place).
 
 | Path | Size | Regenerable | Reason |
 |---|---|---|---|
-| `scripts/**` (45 `.py`) | ~0.8 MiB | no | the full pipeline — primary artifact |
+| `scripts/**` (49 `.py`) | ~0.8 MiB | no | the full pipeline — primary artifact |
 | `config/project_paths.json` | 2 KB | no | central path config (relative paths only) |
 | `notebooks/ERA5_Data().ipynb` | 14 KB | no | ERA5 GRIB preprocessing (no outputs) |
 | `docs/public_release_file_manifest.md` | — | no | this manifest |
@@ -97,7 +97,8 @@ placed on the deny list (kept local-only, not modified in place).
 | `results/audits/future_change_signal_all.csv` | 1.18 MB | yes |
 | `results/audits/future_period_change_signal_all.csv` | 3.79 MB | yes |
 | `results/audits/future_qc_all.csv` | 1.23 MB | yes |
-| `results/audits/cmip6_ceda_missing_recheck.csv` | 1.1 KB | yes — ⚠️ contains a CEDA source drive path (`s:/`), not a local path |
+| `results/audits/cmip6_ceda_missing_recheck.csv` | 1.1 KB | yes — CEDA source URLs (`https://data.ceda.ac.uk/…`) only; no local paths |
+| `results/audits/rerun_content_hashes_{before,after,comparison}.json` | ~0.4 MB | yes (content-hash walk over the four NetCDF roots; project-relative paths, no credentials) |
 
 ---
 
@@ -136,15 +137,15 @@ placed on the deny list (kept local-only, not modified in place).
 | Result | Produced by |
 |---|---|
 | 23 PNG figures | `scripts/06_plotting/plot_final_figures.py` |
-| 6 combined tables | `scripts/04_energy_metrics/compute_energy_metrics_batch.py` |
+| 6 combined tables | `scripts/04_energy_metrics/compute_energy_metrics_batch.py` (spatial-mean tables are intersection-area-weighted via `scripts/common/area_weights.py`; a from-archive re-summary uses `scripts/04_energy_metrics/resummarize_energy_tables.py`) |
 | final-analysis products | `scripts/05_figure_data/build_final_analysis_products.py` |
 | multimodel-ensemble maps/CSVs | `scripts/05_figure_data/build_multimodel_ensemble.py` |
-| audit summaries | `scripts/03_bias_correction/audit_qm_qdm_production.py`, `scripts/04_energy_metrics/audit_energy_metrics_production.py`, and the `01_download`/`02_data_preparation` audit scripts |
+| audit summaries | `scripts/03_bias_correction/audit_qm_qdm_production.py`, `scripts/04_energy_metrics/audit_energy_metrics_production.py` (transition-warning re-summary via `scripts/04_energy_metrics/resummarize_transition_warnings.py`), and the `01_download`/`02_data_preparation` audit scripts |
 | manifests / status files | the respective batch scripts (auto-written) |
 
 ## Estimated repository footprint
 
-- **Tracked files: ~95** (45 scripts + 1 config + 1 notebook + 2 docs + 4 root
+- **Tracked files: ~100** (49 scripts + 1 config + 1 notebook + 2 docs + 4 root
   files + 23 PNGs + 6 tables + 5 final-analysis products + 17 audit summaries).
 - **Tracked size: ~26 MiB**, with no single tracked file above 10 MiB.
 - Excluded: 73 GiB of data/archive and all machine-path-tainted regenerable

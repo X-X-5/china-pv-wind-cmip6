@@ -76,6 +76,20 @@ def parse_arguments() -> argparse.Namespace:
         help="Output base. Default: <project-root>/data/processed/bias_correction.",
     )
     parser.add_argument(
+        "--china-shapefile",
+        type=Path,
+        help=(
+            "China boundary .shp used only for QC statistics (corrected NetCDF "
+            "data keep the full rectangular grid). Default: project_paths "
+            "'china_shapefile'."
+        ),
+    )
+    parser.add_argument(
+        "--skip-netcdf",
+        action="store_true",
+        help="Compute and write CSV diagnostics only, without corrected NetCDF files.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Validate every input combination without writing corrected data.",
@@ -123,12 +137,19 @@ def resolve_paths(arguments: argparse.Namespace) -> dict[str, Path]:
         )
         engine = next((path for path in candidates if path.is_file()), candidates[0])
 
+    china_shapefile = (
+        arguments.china_shapefile.resolve()
+        if arguments.china_shapefile
+        else get_path("china_shapefile")
+    )
+
     required = {
         "project_root": project_root,
         "cmip6_root": cmip6_root,
         "era5_root": era5_root,
         "output_root": output_root,
         "engine": engine,
+        "china_shapefile": china_shapefile,
         "log_root": get_path("results_audits") / "qm_qdm_batch_logs",
     }
     for label in ("cmip6_root", "era5_root"):
@@ -139,6 +160,8 @@ def resolve_paths(arguments: argparse.Namespace) -> dict[str, Path]:
             "Cannot find qm_qdm_future_production_test.py. Put it in "
             f"scripts/03_bias_correction or supply --engine. Expected: {engine}"
         )
+    if not china_shapefile.is_file():
+        raise FileNotFoundError(f"Missing China shapefile: {china_shapefile}")
     return required
 
 
@@ -174,6 +197,8 @@ def run_combination(
     model: str,
     scenario: str,
     dry_run: bool,
+    china_shapefile: Path,
+    skip_netcdf: bool,
 ) -> tuple[int, Path]:
     mode = "dry_run" if dry_run else "production"
     log_path = log_root / f"{model}_{scenario}_{mode}.txt"
@@ -198,7 +223,11 @@ def run_combination(
         str(N_QUANTILES),
         "--qdm-window-years",
         str(QDM_WINDOW_YEARS),
+        "--china-shapefile",
+        str(china_shapefile),
     ]
+    if skip_netcdf:
+        command.append("--skip-netcdf")
     if dry_run:
         command.append("--dry-run")
 
@@ -333,7 +362,8 @@ def main() -> int:
     print(f"Combinations : {len(combinations)}")
     print(f"Output root  : {paths['output_root']}")
     print(f"Mode         : {'DRY RUN' if arguments.dry_run else 'PRODUCTION'}")
-    print("China mask   : not used during correction; apply it during downstream QC")
+    print(f"QC weighting : geodesic China-intersection area ({paths['china_shapefile'].name})")
+    print("Note         : correction grid is never clipped; QC statistics are area-weighted")
 
     records: list[dict[str, object]] = []
     for model, scenario in combinations:
@@ -370,6 +400,8 @@ def main() -> int:
             model=model,
             scenario=scenario,
             dry_run=arguments.dry_run,
+            china_shapefile=paths["china_shapefile"],
+            skip_netcdf=arguments.skip_netcdf,
         )
         elapsed = (datetime.now() - started).total_seconds()
         status = "COMPLETED" if return_code == 0 else "FAILED"

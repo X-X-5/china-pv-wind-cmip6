@@ -14,6 +14,7 @@ pyproj
 cftime
 matplotlib
 requests
+cdsapi
 
 # cfgrib is GRIB-only (ERA5 preprocessing) and additionally requires the
 # ecCodes C library, which pip cannot install. Use conda (`eccodes`) or the

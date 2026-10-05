@@ -38,6 +38,7 @@ results/tables/combined_historical_future_transition.csv
 # See docs/public_release_file_manifest.md §Privacy for details.
 results/manifests/
 results/figure_data/final_analysis/final_analysis_manifest.json
+results/figures/figure_manifest.json
 results/audits/qm_qdm_batch_logs/
 results/audits/energy_production_audit/
 results/audits/qm_qdm_production_audit/

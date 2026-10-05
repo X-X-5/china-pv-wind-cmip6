@@ -7,7 +7,9 @@ for _dir in (_OWN_DIR, _SCRIPTS_DIR / "common", _SCRIPTS_DIR / "03_bias_correcti
     if _dir.is_dir() and str(_dir) not in _sys.path:
         _sys.path.insert(0, str(_dir))
 from project_paths import PROJECT_ROOT, get_path  # noqa: E402
+from area_weights import china_intersection_weights  # noqa: E402
 # -------------------------------------------------------------------
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -61,6 +63,8 @@ LAT_MAX = 54.0
 
 LON_MIN = 70.0
 LON_MAX = 140.0
+
+SHAPEFILE = get_path("china_shapefile")
 
 EXPECTED_MONTHS = {
     "historical": 672,
@@ -349,40 +353,52 @@ def crop_spatial_domain(
     ds,
 ):
 
-    lat_mask = (
-        (ds["lat"] >= LAT_MIN)
-        &
-        (ds["lat"] <= LAT_MAX)
-    )
-
-    lon_mask = (
-        (ds["lon"] >= LON_MIN)
-        &
-        (ds["lon"] <= LON_MAX)
-    )
-
-    ds = ds.sel(
-        lat=ds[
-            "lat"
-        ][
-            lat_mask
-        ],
-        lon=ds[
-            "lon"
-        ][
-            lon_mask
-        ],
-    )
-
+    # Keep the minimal contiguous lat/lon index range that fully encloses every
+    # cell whose box intersects the China boundary polygon.  This retains edge
+    # cells that straddle the boundary (e.g. CanESM5's cell centred at
+    # 54.4162N, whose southern half overlaps China's northernmost tip) without
+    # any fillna, neighbour-copy, or extra interpolation, while dropping
+    # pure-ocean halo cells that carry zero intersection area.
     ds = ds.sortby(
         "lat"
-    )
-
-    ds = ds.sortby(
+    ).sortby(
         "lon"
     )
 
-    return ds
+    weights = china_intersection_weights(
+        ds["lat"].values,
+        ds["lon"].values,
+        SHAPEFILE,
+    )
+
+    intersects = weights[
+        "china_intersects"
+    ]
+
+    if not intersects.any():
+
+        raise ValueError(
+            "No cell intersects the China boundary"
+        )
+
+    lat_indices, lon_indices = np.where(
+        intersects
+    )
+
+    lat_slice = slice(
+        int(lat_indices.min()),
+        int(lat_indices.max()) + 1,
+    )
+
+    lon_slice = slice(
+        int(lon_indices.min()),
+        int(lon_indices.max()) + 1,
+    )
+
+    return ds.isel(
+        lat=lat_slice,
+        lon=lon_slice,
+    )
 
 
 def check_spatial_domain(
@@ -413,38 +429,6 @@ def check_spatial_domain(
         "lon"
     ].values
 
-    if np.any(
-        lat_values < LAT_MIN
-    ):
-
-        raise ValueError(
-            "Latitude below target domain detected"
-        )
-
-    if np.any(
-        lat_values > LAT_MAX
-    ):
-
-        raise ValueError(
-            "Latitude above target domain detected"
-        )
-
-    if np.any(
-        lon_values < LON_MIN
-    ):
-
-        raise ValueError(
-            "Longitude below target domain detected"
-        )
-
-    if np.any(
-        lon_values > LON_MAX
-    ):
-
-        raise ValueError(
-            "Longitude above target domain detected"
-        )
-
     if not np.all(
         np.diff(
             lat_values
@@ -463,6 +447,36 @@ def check_spatial_domain(
 
         raise ValueError(
             "Longitude is not strictly ascending"
+        )
+
+    # Completeness: the cropped grid must still cover the full China boundary
+    # (intersection area / boundary area ~= 1).  A ratio below this threshold
+    # means an intersecting cell was dropped by the crop.
+    weights = china_intersection_weights(
+        lat_values,
+        lon_values,
+        SHAPEFILE,
+    )
+
+    boundary_area = float(
+        weights["china_boundary_area_km2"]
+    )
+
+    intersection_area = float(
+        weights["china_intersection_area_km2"].sum()
+    )
+
+    coverage = (
+        intersection_area / boundary_area
+        if boundary_area > 0.0
+        else np.nan
+    )
+
+    if coverage < 0.9999:
+
+        raise ValueError(
+            "Cropped grid does not fully cover the China boundary "
+            f"(coverage ratio {coverage:.6f})"
         )
 
 
@@ -693,7 +707,37 @@ def process_group(
         ds.close()
 
 
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Crop processed CMIP6 files to the minimal contiguous lat/lon "
+            "index range enclosing every China-intersecting cell."
+        )
+    )
+
+    parser.add_argument(
+        "--models",
+        nargs="*",
+        default=None,
+        help=(
+            "Optional subset of model names to process (default: all models "
+            "in the script's MODELS list)."
+        ),
+    )
+
+    return parser.parse_args()
+
+
 def main():
+
+    args = parse_args()
+
+    models = (
+        args.models
+        if args.models
+        else MODELS
+    )
 
     print()
     print(
@@ -717,13 +761,18 @@ def main():
     )
 
     print(
-        f"Latitude domain: "
-        f"{LAT_MIN} to {LAT_MAX}"
+        f"Reference domain (informational): "
+        f"lat {LAT_MIN} to {LAT_MAX}, "
+        f"lon {LON_MIN} to {LON_MAX}"
     )
 
     print(
-        f"Longitude domain: "
-        f"{LON_MIN} to {LON_MAX}"
+        f"Shapefile: {SHAPEFILE}"
+    )
+
+    print(
+        "Crop rule: minimal contiguous range enclosing all "
+        "China-intersecting cells"
     )
 
     OUTPUT_ROOT.mkdir(
@@ -733,7 +782,7 @@ def main():
 
     total_groups = (
         len(
-            MODELS
+            models
         )
         *
         len(
@@ -754,7 +803,7 @@ def main():
 
     group_number = 0
 
-    for model in MODELS:
+    for model in models:
 
         for experiment in EXPERIMENTS:
 
@@ -902,7 +951,7 @@ def main():
         "=" * 120
     )
 
-    for model in MODELS:
+    for model in models:
 
         if model not in model_grid_info:
 

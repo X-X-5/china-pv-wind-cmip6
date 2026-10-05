@@ -291,7 +291,7 @@ def write_historical(
     model: str,
     output_root: Path,
     baselines: dict[str, dict[str, engine.xr.DataArray]],
-    spatial_mask: np.ndarray,
+    spatial_weights: np.ndarray,
     qc_region: str,
     mask_metadata: dict[str, object],
     hub_height: float,
@@ -324,7 +324,7 @@ def write_historical(
         complementarity, rows = engine.compute_complementarity(
             baseline,
             energy_support,
-            spatial_mask,
+            spatial_weights,
             qc_region,
             periods=historical_period,
         )
@@ -340,7 +340,7 @@ def write_historical(
 
     comparison_rows = add_context(
         engine.make_historical_baseline_rows(
-            baseline_energies, spatial_mask, qc_region
+            baseline_energies, spatial_weights, qc_region
         ),
         model,
         "historical",
@@ -387,7 +387,7 @@ def compute_scenario(
     baselines: dict[str, dict[str, engine.xr.DataArray]],
     corrected: dict[str, engine.xr.Dataset],
     input_paths: dict[str, dict[str, Path]],
-    spatial_mask: np.ndarray,
+    spatial_weights: np.ndarray,
     qc_region: str,
     mask_metadata: dict[str, object],
     arguments: argparse.Namespace,
@@ -427,14 +427,14 @@ def compute_scenario(
         engine.write_dataset(energy_path, energy)
         qc_rows.extend(
             add_context(
-                engine.make_qc_rows(method, energy, spatial_mask, qc_region),
+                engine.make_qc_rows(method, energy, spatial_weights, qc_region),
                 model,
                 scenario,
             )
         )
         period_rows.extend(
             add_context(
-                engine.make_period_rows(method, energy, spatial_mask, qc_region),
+                engine.make_period_rows(method, energy, spatial_weights, qc_region),
                 model,
                 scenario,
             )
@@ -443,9 +443,9 @@ def compute_scenario(
             add_context(
                 engine.make_height_sensitivity_rows(
                     method,
-                    meteorology,
+                    meteorology["sfcWind"],
                     list(arguments.sensitivity_heights),
-                    spatial_mask,
+                    spatial_weights,
                     qc_region,
                 ),
                 model,
@@ -453,7 +453,7 @@ def compute_scenario(
             )
         )
         complementarity, rows = engine.compute_complementarity(
-            method, energy_support, spatial_mask, qc_region
+            method, energy_support, spatial_weights, qc_region
         )
         complementarity_path = scenario_root / (
             f"complementarity_{model}_{scenario}_{method}.nc"
@@ -466,7 +466,7 @@ def compute_scenario(
         }
 
     transition_rows = add_context(
-        engine.make_transition_rows(method_energies, spatial_mask, qc_region),
+        engine.make_transition_rows(method_energies, spatial_weights, qc_region),
         model,
         scenario,
     )
@@ -627,7 +627,7 @@ def main() -> int:
 
         print(f"\n[{model_index:02d}/{len(models):02d}] {model}")
         baselines = None
-        spatial_mask = None
+        spatial_weights = None
         qc_region = None
         mask_metadata = None
         first_corrected = None
@@ -647,12 +647,12 @@ def main() -> int:
                 arguments.upper,
                 arguments.n_quantiles,
             )
-            spatial_mask, qc_region, mask_metadata = engine.build_mask(
+            spatial_weights, qc_region, mask_metadata = engine.build_china_weights(
                 baselines["qm_historical"]["tas"], roots["china_shapefile"]
             )
             print(
-                f"  Grid/mask: {int(spatial_mask.sum())}/{int(spatial_mask.size)} "
-                f"cells ({qc_region})"
+                f"  Grid/mask: {int((spatial_weights > 0.0).sum())}/"
+                f"{int(spatial_weights.size)} cells ({qc_region})"
             )
         except Exception as error:
             failures += 1
@@ -671,7 +671,7 @@ def main() -> int:
             continue
 
         assert baselines is not None
-        assert spatial_mask is not None
+        assert spatial_weights is not None
         assert qc_region is not None
         assert mask_metadata is not None
         assert first_corrected is not None
@@ -693,7 +693,7 @@ def main() -> int:
                     model,
                     output_root,
                     baselines,
-                    spatial_mask,
+                    spatial_weights,
                     qc_region,
                     mask_metadata,
                     arguments.hub_height,
@@ -770,7 +770,7 @@ def main() -> int:
                         baselines,
                         corrected,
                         input_paths,
-                        spatial_mask,
+                        spatial_weights,
                         qc_region,
                         mask_metadata,
                         arguments,

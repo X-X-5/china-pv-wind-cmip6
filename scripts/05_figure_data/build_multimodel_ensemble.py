@@ -29,6 +29,7 @@ for _dir in (_OWN_DIR, _SCRIPTS_DIR / "common", _SCRIPTS_DIR / "03_bias_correcti
     if _dir.is_dir() and str(_dir) not in _sys.path:
         _sys.path.insert(0, str(_dir))
 from project_paths import PROJECT_ROOT, get_path  # noqa: E402
+from area_weights import china_intersection_weights  # noqa: E402
 # -------------------------------------------------------------------
 
 import argparse
@@ -191,49 +192,40 @@ def coordinate(start: float, stop: float, step: float) -> np.ndarray:
     return values
 
 
-def build_china_mask(
+def build_china_weights(
     latitudes: np.ndarray,
     longitudes: np.ndarray,
     shapefile: Path,
-) -> tuple[np.ndarray, dict[str, object]]:
-    if not shapefile.is_file():
-        raise FileNotFoundError(f"China shapefile does not exist: {shapefile}")
-    missing = [
-        str(shapefile.with_suffix(suffix))
-        for suffix in (".shx", ".dbf", ".prj")
-        if not shapefile.with_suffix(suffix).is_file()
-    ]
-    if missing:
-        raise FileNotFoundError("Missing shapefile sidecars: " + ", ".join(missing))
-    try:
-        import cartopy.io.shapereader as shpreader
-        from shapely.geometry import Point
-        from shapely.ops import unary_union
-    except ImportError as error:
-        raise RuntimeError(
-            "China mask requires cartopy and shapely in the pvwind environment."
-        ) from error
-    reader = shpreader.Reader(str(shapefile))
-    geometry = unary_union(list(reader.geometries()))
-    close = getattr(reader, "close", None)
-    if close is not None:
-        close()
-    mask = np.zeros((latitudes.size, longitudes.size), dtype=bool)
-    for i, latitude in enumerate(latitudes):
-        for j, longitude in enumerate(longitudes):
-            mask[i, j] = geometry.covers(
-                Point(float(longitude), float(latitude))
-            )
-    if not mask.any():
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, object]]:
+    """Intersection-area weights on the common 1-degree grid.
+
+    Returns ``(gridcell_area_km2, china_intersection_area_km2, china_intersects,
+    china_area_fraction, metadata)``.  A cell is selected when its geodesic area
+    overlaps the China boundary polygon; partial coastal cells are retained (no
+    centre-point pre-NaN of border cells).
+    """
+    result = china_intersection_weights(latitudes, longitudes, shapefile)
+    gridcell_area = result["gridcell_area_km2"]
+    intersection = result["china_intersection_area_km2"]
+    intersects = result["china_intersects"]
+    fraction = result["china_area_fraction"]
+    counts = result["counts"]
+    if not intersects.any():
         raise ValueError("China boundary selected zero common-grid cells")
-    return mask, {
+    metadata: dict[str, object] = {
         "shapefile": str(shapefile),
-        "selected_cells": int(mask.sum()),
-        "total_cells": int(mask.size),
-        "selected_fraction": float(mask.mean()),
-        "geometry_bounds": [float(value) for value in geometry.bounds],
-        "selection_rule": "target-grid centre covered by China polygon",
+        "selection_rule": "grid-cell area intersecting the China polygon",
+        "weighting": "geodesic intersection area with the China boundary (WGS84)",
+        "selected_cells": int(counts["intersects"]),
+        "fully_inside_cells": int(counts["fully_inside"]),
+        "partial_cells": int(counts["partial"]),
+        "outside_cells": int(counts["outside"]),
+        "total_cells": int(counts["total"]),
+        "selected_fraction": float(counts["intersects"] / counts["total"]),
+        "china_boundary_area_km2": float(result["china_boundary_area_km2"]),
+        "china_intersection_total_km2": float(intersection.sum()),
     }
+    return gridcell_area, intersection, intersects, fraction, metadata
 
 
 def expected_paths(
@@ -271,7 +263,7 @@ def regrid_map(
     data: xr.DataArray,
     latitudes: np.ndarray,
     longitudes: np.ndarray,
-    china_mask: np.ndarray,
+    china_intersects: np.ndarray,
 ) -> np.ndarray:
     array = data.squeeze(drop=True)
     if set(array.dims) != {"lat", "lon"}:
@@ -283,7 +275,7 @@ def regrid_map(
         method="linear",
     )
     values = np.asarray(target.values, dtype=np.float64)
-    values[~china_mask] = np.nan
+    values[~china_intersects] = np.nan
     return values
 
 
@@ -631,7 +623,7 @@ def main() -> int:
         )
     latitudes = coordinate(arguments.lat_min, arguments.lat_max, arguments.resolution)
     longitudes = coordinate(arguments.lon_min, arguments.lon_max, arguments.resolution)
-    china_mask, mask_metadata = build_china_mask(
+    china_gridcell, china_area, china_intersects, china_fraction, china_metadata = build_china_weights(
         latitudes, longitudes, shapefile
     )
     required = expected_paths(input_root, models, list(arguments.scenarios))
@@ -645,7 +637,11 @@ def main() -> int:
     print(f"Combinations    : {len(models) * len(arguments.scenarios)}")
     print(f"Common grid     : {latitudes.size} lat x {longitudes.size} lon")
     print(f"Resolution      : {arguments.resolution:g} degree")
-    print(f"China cells     : {int(china_mask.sum())}/{int(china_mask.size)}")
+    print(
+        f"China cells     : {int(china_intersects.sum())}/{int(china_intersects.size)} "
+        f"intersecting (fully-inside {china_metadata['fully_inside_cells']}, "
+        f"partial {china_metadata['partial_cells']})"
+    )
     print(f"Minimum models  : {min_models}/{len(models)}")
     print(f"Input root      : {input_root}")
     print(f"Output root     : {output_root}")
@@ -692,7 +688,7 @@ def main() -> int:
                                 ).load()
                                 method_native_maps[period][variable] = native
                                 common = regrid_map(
-                                    native, latitudes, longitudes, china_mask
+                                    native, latitudes, longitudes, china_intersects
                                 )
                                 method_maps[period][variable] = common
                                 period_storage[
@@ -721,13 +717,13 @@ def main() -> int:
                                     absolute_native,
                                     latitudes,
                                     longitudes,
-                                    china_mask,
+                                    china_intersects,
                                 )
                                 relative = regrid_map(
                                     relative_native,
                                     latitudes,
                                     longitudes,
-                                    china_mask,
+                                    china_intersects,
                                 )
                                 change_storage[
                                     (
@@ -761,7 +757,7 @@ def main() -> int:
                                     period=period, definition=definition
                                 )
                                 common = regrid_map(
-                                    native, latitudes, longitudes, china_mask
+                                    native, latitudes, longitudes, china_intersects
                                 )
                                 complementarity_storage[
                                     (scenario, method, period, definition)
@@ -778,10 +774,10 @@ def main() -> int:
                             absolute_native, paper_native
                         )
                         absolute = regrid_map(
-                            absolute_native, latitudes, longitudes, china_mask
+                            absolute_native, latitudes, longitudes, china_intersects
                         )
                         relative = regrid_map(
-                            relative_native, latitudes, longitudes, china_mask
+                            relative_native, latitudes, longitudes, china_intersects
                         )
                         method_difference_storage[
                             (
@@ -809,14 +805,14 @@ def main() -> int:
                             optimized["absolute_change"] - paper["absolute_change"],
                             latitudes,
                             longitudes,
-                            china_mask,
+                            china_intersects,
                         )
                         relative_change_difference = regrid_map(
                             optimized["relative_change_percent"]
                             - paper["relative_change_percent"],
                             latitudes,
                             longitudes,
-                            china_mask,
+                            china_intersects,
                         )
                         method_difference_storage[
                             (
@@ -890,7 +886,10 @@ def main() -> int:
                 ),
                 period_values,
             ),
-            "china_mask": (("lat", "lon"), china_mask.astype(np.int8)),
+            "gridcell_area_km2": (("lat", "lon"), china_gridcell),
+            "china_intersects": (("lat", "lon"), china_intersects.astype(np.int8)),
+            "china_intersection_area_km2": (("lat", "lon"), china_area),
+            "china_area_fraction": (("lat", "lon"), china_fraction),
         },
         coords={
             key: coords[key]
@@ -980,7 +979,10 @@ def main() -> int:
                 ),
                 agreement_values,
             ),
-            "china_mask": (("lat", "lon"), china_mask.astype(np.int8)),
+            "gridcell_area_km2": (("lat", "lon"), china_gridcell),
+            "china_intersects": (("lat", "lon"), china_intersects.astype(np.int8)),
+            "china_intersection_area_km2": (("lat", "lon"), china_area),
+            "china_area_fraction": (("lat", "lon"), china_fraction),
         },
         coords={
             key: coords[key]
@@ -1071,7 +1073,10 @@ def main() -> int:
                 ),
                 difference_agreement,
             ),
-            "china_mask": (("lat", "lon"), china_mask.astype(np.int8)),
+            "gridcell_area_km2": (("lat", "lon"), china_gridcell),
+            "china_intersects": (("lat", "lon"), china_intersects.astype(np.int8)),
+            "china_intersection_area_km2": (("lat", "lon"), china_area),
+            "china_area_fraction": (("lat", "lon"), china_fraction),
         },
         coords={
             key: coords[key]
@@ -1131,7 +1136,10 @@ def main() -> int:
                 ),
                 complementarity_values,
             ),
-            "china_mask": (("lat", "lon"), china_mask.astype(np.int8)),
+            "gridcell_area_km2": (("lat", "lon"), china_gridcell),
+            "china_intersects": (("lat", "lon"), china_intersects.astype(np.int8)),
+            "china_intersection_area_km2": (("lat", "lon"), china_area),
+            "china_area_fraction": (("lat", "lon"), china_fraction),
         },
         coords={
             key: coords[key]
@@ -1191,7 +1199,7 @@ def main() -> int:
             "lat_count": int(latitudes.size),
             "lon_count": int(longitudes.size),
         },
-        "china_mask": mask_metadata,
+        "china_intersection": china_metadata,
         "minimum_valid_models": int(min_models),
         "ensemble_order": (
             "model-level diagnostic -> linear interpolation to common grid -> "

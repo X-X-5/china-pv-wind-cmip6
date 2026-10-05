@@ -29,6 +29,7 @@
 
     "data_raw_cmip6_downloaded": "data/raw/cmip6_downloaded",
     "data_raw_era5_raw": "data/raw/era5_raw",
+    "data_raw_era5_expanded": "data/raw/era5_expanded",
     "data_raw_era5_2015_2025": "data/raw/era5_2015_2025",
     "data_raw_era5_1981_2005": "data/raw/era5_1981_2005",
     "data_raw_era5_archives": "data/raw/era5_archives",
