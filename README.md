@@ -61,7 +61,7 @@ reproduces the study's baseline route and an optimized variant.
   or bilinearly interpolated to the common 1° grid before an equal-weight
   17-model ensemble. No downscaling or gap-filling is applied.
 
-## 5. Pipeline (7 stages)
+## 5. Pipeline (8 stages)
 
 1. **Download** — CMIP6 (CEDA) and ERA5 (CDS); `scripts/01_download/`.
 2. **Prepare** — clip to China, regrid ERA5 onto each model grid, build
@@ -72,9 +72,11 @@ reproduces the study's baseline route and an optimized variant.
    sensitivity and complementarity); `scripts/04_energy_metrics/`.
 5. **Figure data** — multimodel ensemble + final-analysis products;
    `scripts/05_figure_data/`.
-6. **Plotting** — the 23 final figures; `scripts/06_plotting/`.
+6. **Plotting** — the 23 core figures; `scripts/06_plotting/`.
 7. **Validation** — ERA5 2015–2025 holdout / validation;
    `scripts/07_validation/`.
+8. **Paper reproduction comparison** — Route B against published quantitative
+   and qualitative anchors; `scripts/08_reproduction_comparison/`.
 
 ## 6. Running the pipeline
 
@@ -99,9 +101,12 @@ python scripts/05_figure_data/build_multimodel_ensemble.py
 python scripts/05_figure_data/build_final_analysis_products.py --dry-run
 python scripts/05_figure_data/build_final_analysis_products.py
 
-# Stage 6 — plot the 23 figures
+# Stage 6 — plot the 23 core figures
 python scripts/06_plotting/plot_final_figures.py --dry-run
 python scripts/06_plotting/plot_final_figures.py
+
+# Stage 8 — paper reproduction comparison (read-only; CSVs + Markdown + 2 figures)
+python scripts/08_reproduction_comparison/compare_with_paper.py
 ```
 
 Stage 1–2 require access to the CMIP6 (CEDA) and ERA5 (CDS) archives and are
@@ -147,7 +152,8 @@ products, audit summaries) are included — see
 
 ## 9. Main results
 
-23 final figures:
+**23 core B/D analysis figures** (9 paper-baseline Route B + 9 optimized Route D
++ 5 method-comparison B/D):
 
 - **Paper baseline (`results/figures/paper_baseline/`):** `Fig02`–`Fig10`
   (route B) — climate factors, PV potential (annual/period-maps/gridwise change),
@@ -163,9 +169,20 @@ products, audit summaries) are included — see
 Key summary tables live in `results/tables/` (cross-model `combined_*.csv`) and
 the final-analysis products in `results/figure_data/final_analysis/`.
 
+### Paper reproduction comparison (2 additional figures)
+
+A read-only Route B (`paper_qm`) comparison against the study's published
+quantitative and qualitative anchors — see
+[`docs/paper_reproduction_comparison.md`](docs/paper_reproduction_comparison.md).
+These two figures are **additional** and are **not** part of the 23 core figures.
+
+![Route B annual series with paper endpoint markers](results/figures/reproduction_comparison/FigRC01_route_B_annual_series_with_paper_endpoint_markers.png)
+
+![Route B spatial pattern with qualitative anchors](results/figures/reproduction_comparison/FigRC02_route_B_spatial_pattern_with_qualitative_anchors.png)
+
 ### Selected results
 
-Four representative figures from the full set of 23:
+Four representative figures from the core set of 23:
 
 ![PV potential map](results/figures/paper_baseline/Fig03_pvpot_annual_route_B.png)
 
@@ -226,13 +243,17 @@ underlying study:
 > *Renewable Energy, 249*, 123213.
 > https://doi.org/10.1016/j.renene.2025.123213
 
-The manuscript PDF is kept locally under `references/` and is **not** included
-in this repository.
+The manuscript PDF was consulted locally during development and is not
+distributed with this repository.
 
 Data providers:
 
-- **CMIP6** model output — obtained from the CEDA Archive (data.ceda.ac.uk).
-- **ERA5** reanalysis — Copernicus Climate Change Service / ECMWF.
+- **CMIP6** model output — distributed through the Earth System Grid Federation
+  (ESGF). 16 of the 17 models were obtained from the CEDA Archive
+  (data.ceda.ac.uk); **CAS-ESM2-0** was obtained from the Oak Ridge National
+  Laboratory (ORNL) ESGF/THREDDS node.
+- **ERA5** reanalysis — Copernicus Climate Data Store (CDS) / ECMWF, regridded
+  to each GCM's native grid for bias correction.
 
 ## 14. Limitations
 

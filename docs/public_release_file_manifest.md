@@ -46,19 +46,22 @@ placed on the deny list (kept local-only, not modified in place).
 
 | Path | Size | Regenerable | Reason |
 |---|---|---|---|
-| `scripts/**` (49 `.py`) | ~0.8 MiB | no | the full pipeline — primary artifact |
+| `scripts/**` (50 `.py`) | ~0.9 MiB | no | the full pipeline — primary artifact |
+| `scripts/08_reproduction_comparison/compare_with_paper.py` | 48 KB | no | read-only paper-reproduction comparison (Stage 8) |
 | `config/project_paths.json` | 2 KB | no | central path config (relative paths only) |
 | `notebooks/ERA5_Data().ipynb` | 14 KB | no | ERA5 GRIB preprocessing (no outputs) |
 | `docs/public_release_file_manifest.md` | — | no | this manifest |
 | `docs/environment_notes.md` | — | no | environment guidance |
+| `docs/paper_reproduction_comparison.md` | 6.6 KB | no | paper-reproduction comparison report (Stage 8) |
 
-### Figures (23 PNG)
+### Figures (25 PNG — 23 core B/D + 2 reproduction-comparison)
 
 | Path | Size | Regenerable | Reason |
 |---|---|---|---|
-| `results/figures/paper_baseline/Fig02`–`Fig10` (9 PNG) | ~9.2 MiB | yes (`plot_final_figures.py`) | paper-baseline figures (route B) |
-| `results/figures/optimized_route/Fig02`–`Fig10` (9 PNG) | ~9 MiB | yes (`plot_final_figures.py`) | optimized-route figures (route D) |
-| `results/figures/method_comparison/Opt01`–`Opt04` (5 PNG) | ~2.7 MiB | yes (`plot_final_figures.py`) | B-vs-D comparison figures |
+| `results/figures/paper_baseline/Fig02`–`Fig10` (9 PNG) | ~9.2 MiB | yes (`plot_final_figures.py`) | paper-baseline figures (route B) — core |
+| `results/figures/optimized_route/Fig02`–`Fig10` (9 PNG) | ~9 MiB | yes (`plot_final_figures.py`) | optimized-route figures (route D) — core |
+| `results/figures/method_comparison/Opt01`–`Opt04` (5 PNG) | ~2.7 MiB | yes (`plot_final_figures.py`) | B-vs-D comparison figures — core |
+| `results/figures/reproduction_comparison/FigRC01`–`FigRC02` (2 PNG) | 0.59 MiB | yes (`compare_with_paper.py`) | paper-reproduction comparison figures — additional (not part of the core 23) |
 
 ### Cross-model summary tables (6 of 7)
 
@@ -71,7 +74,15 @@ placed on the deny list (kept local-only, not modified in place).
 | `results/tables/combined_historical_baseline_complementarity_summary.csv` | 0.04 MB | yes | baseline complementarity |
 | `results/tables/combined_hub_height_sensitivity.csv` | 0.22 MB | yes | hub-height sensitivity |
 
-### Final-analysis products (needed to plot the 23 figures)
+### Paper reproduction comparison tables (3 CSV)
+
+| Path | Size | Regenerable | Reason |
+|---|---|---|---|
+| `results/tables/paper_baseline_values_inventory.csv` | 8.6 KB | yes (`compare_with_paper.py`) | paper baseline values inventory |
+| `results/tables/paper_reproduction_comparison.csv` | 8.2 KB | yes (`compare_with_paper.py`) | Route B vs paper comparison |
+| `results/tables/paper_trend_mk_summary.csv` | 4.9 KB | yes (`compare_with_paper.py`) | Mann-Kendall / OLS trend summary |
+
+### Final-analysis products (needed to plot the 23 core figures)
 
 | Path | Size | Regenerable | Reason |
 |---|---|---|---|
@@ -110,7 +121,7 @@ placed on the deny list (kept local-only, not modified in place).
 | `archive/**` | 12.6 GiB | historical/legacy bulk | n/a |
 | `references/**` | 15.8 MB | paper PDF, copyright | n/a |
 | `*.grib`, `*.grib2`, `*.idx` | — | ERA5 raw + sidecars | yes |
-| `results/figures/**/*.zip` | 10.9 MB | figure bundle; 23 PNGs tracked individually | yes |
+| `results/figures/**/*.zip` | 10.9 MB | figure bundle; 25 PNGs tracked individually | yes |
 | `results/tables/combined_historical_future_transition.csv` | 17.2 MB | first-version large table (excluded by release plan) | yes |
 | `results/figure_data/multimodel_ensemble/**` | 7.8 MB | intermediate maps/CSVs | yes |
 | `results/figure_data/final_analysis/final_analysis_manifest.json` | 2.3 KB | embeds local path | yes |
@@ -136,7 +147,8 @@ placed on the deny list (kept local-only, not modified in place).
 
 | Result | Produced by |
 |---|---|
-| 23 PNG figures | `scripts/06_plotting/plot_final_figures.py` |
+| 23 core PNG figures | `scripts/06_plotting/plot_final_figures.py` |
+| 2 reproduction-comparison figures + 3 tables + report | `scripts/08_reproduction_comparison/compare_with_paper.py` |
 | 6 combined tables | `scripts/04_energy_metrics/compute_energy_metrics_batch.py` (spatial-mean tables are intersection-area-weighted via `scripts/common/area_weights.py`; a from-archive re-summary uses `scripts/04_energy_metrics/resummarize_energy_tables.py`) |
 | final-analysis products | `scripts/05_figure_data/build_final_analysis_products.py` |
 | multimodel-ensemble maps/CSVs | `scripts/05_figure_data/build_multimodel_ensemble.py` |
@@ -145,8 +157,8 @@ placed on the deny list (kept local-only, not modified in place).
 
 ## Estimated repository footprint
 
-- **Tracked files: ~100** (49 scripts + 1 config + 1 notebook + 2 docs + 4 root
-  files + 23 PNGs + 6 tables + 5 final-analysis products + 17 audit summaries).
-- **Tracked size: ~26 MiB**, with no single tracked file above 10 MiB.
+- **Tracked files: 121** (50 scripts + 1 config + 1 notebook + 3 docs + 7 root
+  files + 25 PNGs + 9 tables + 5 final-analysis products + 20 audit files).
+- **Tracked size: 34.6 MiB**, with no single tracked file above 10 MiB.
 - Excluded: 73 GiB of data/archive and all machine-path-tainted regenerable
   results.
