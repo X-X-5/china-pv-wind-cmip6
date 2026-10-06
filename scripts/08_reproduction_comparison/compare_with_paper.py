@@ -847,9 +847,9 @@ def plot_annual_series(df: pd.DataFrame) -> Path:
 
     # Dedicated top row for a figure-level legend (no in-axes legend, so nothing
     # overlaps the curves).  Suptitle sits above ``top``; the legend row is gs[0].
-    fig = plt.figure(figsize=(8.5, 11))
-    gs = GridSpec(4, 1, figure=fig, height_ratios=[0.45, 1, 1, 1], hspace=0.22,
-                  left=0.10, right=0.96, top=0.865, bottom=0.055)
+    fig = plt.figure(figsize=(8.5, 9.2))
+    gs = GridSpec(4, 1, figure=fig, height_ratios=[0.12, 1, 1, 1], hspace=0.15,
+                  left=0.10, right=0.96, top=0.92, bottom=0.06)
     leg_ax = fig.add_subplot(gs[0, 0])
     leg_ax.axis("off")
     ax0 = fig.add_subplot(gs[1, 0])
@@ -880,7 +880,7 @@ def plot_annual_series(df: pd.DataFrame) -> Path:
         Line2D([], [], color=colors["ssp245"], lw=1.4, label="SSP245"),
         Line2D([], [], color=colors["ssp585"], lw=1.4, label="SSP585"),
         Line2D([], [], marker="x", color="0.15", lw=0, ms=7, markeredgewidth=1.7,
-               label="reported approximate year-2100 endpoints"),
+               label="Paper-reported approx. 2100 PVpot (×; scenario color)"),
     ]
     leg_ax.legend(handles=handles, loc="center", ncol=4, fontsize=8.5,
                   frameon=False, handlelength=2.2, columnspacing=1.4, borderaxespad=0)
