@@ -17,6 +17,10 @@ channels:
 
 dependencies:
   - python=3.12
+  # Pin the BLAS backend to avoid the observed Windows MKL/OpenMP runtime crash.
+  - "libblas=*=*openblas"
+  - "libcblas=*=*openblas"
+  - "liblapack=*=*openblas"
 
   # Core numeric / tabular / NetCDF
   - numpy

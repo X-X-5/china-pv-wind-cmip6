@@ -69,6 +69,24 @@ Failure to do so surfaces as `RuntimeError: Cannot find the ecCodes library`
 **not** part of the repository, and no credentials are stored in any tracked
 file.
 
+## Windows BLAS backend
+
+A native runtime incompatibility was observed for the MKL/OpenMP combination
+in the original Windows Conda environment. It affected both NumPy BLAS
+operations and Matplotlib rendering. The project therefore pins the OpenBLAS
+backend in `environment.yml` for stable reconstruction. Creating a fresh
+environment from `environment.yml` is recommended.
+
+- **Symptom:** NumPy BLAS/LAPACK operations and Matplotlib `savefig` exit with
+  the Windows native exception `0xC06D007F` (reported as exit code 127 in
+  bash), with no Python traceback.
+- `environment.yml` pins `libblas`, `libcblas`, and `liblapack` to the OpenBLAS
+  build so NumPy links OpenBLAS instead of Intel MKL.
+- `MKL_THREADING_LAYER=SEQUENTIAL` only works around the crash in an *existing*
+  MKL environment; it is a temporary diagnostic, not the formal reproduction
+  configuration.
+- The specific DLL-level cause has not been proven down to ABI/ordinal details.
+
 ## Not required
 
 These packages are **not** imported anywhere and are not needed:
