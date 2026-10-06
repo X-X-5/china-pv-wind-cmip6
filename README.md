@@ -15,8 +15,7 @@ reproduces the study's baseline route and an optimized variant.
 - **Reproduce** the baseline (paper) route of the PV/wind study.
 - **Optimize** the bias-correction chain with a QDM variant and evaluate the
   resulting change in PV potential, wind power density, and complementarity.
-- Produce 23 final figures (9 paper-baseline Route B + 9 optimized-route Route D
-  + 5 method-comparison B−D).
+- Produce 23 core B/D figures (9 paper-baseline Route B, 9 optimized-route Route D, and 5 method-comparison B−D figures), plus 2 paper-reproduction comparison figures.
 
 ## 2. Data
 
@@ -152,8 +151,7 @@ products, audit summaries) are included — see
 
 ## 9. Main results
 
-**23 core B/D analysis figures** (9 paper-baseline Route B + 9 optimized Route D
-+ 5 method-comparison B/D):
+**23 core B/D analysis figures:** 9 paper-baseline Route B, 9 optimized Route D, and 5 method-comparison B/D figures.
 
 - **Paper baseline (`results/figures/paper_baseline/`):** `Fig02`–`Fig10`
   (route B) — climate factors, PV potential (annual/period-maps/gridwise change),
@@ -206,7 +204,9 @@ Four representative figures from the core set of 23:
 |---|---|
 | Bias-corrected NetCDF | **153/153** present |
 | Energy-metric NetCDF | **272/272** present |
-| Final figures | **23** (9 paper-B + 9 optimized-D + 5 comparison) |
+| Core B/D figures | **23** (9 paper-B + 9 optimized-D + 5 comparison) |
+| Paper-reproduction figures | **2** |
+| Public PNG figures | **25** |
 | Bias-correction audit | **PASS** (153/153, 51/51 manifests) |
 | Energy-metrics audit | **PASS** (272/272, 0 failures) |
 | Downstream dry-runs | **PASS** (all stages) |
