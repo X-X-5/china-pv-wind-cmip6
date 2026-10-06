@@ -63,6 +63,18 @@ reproduces the study's baseline route and an optimized variant.
   [`results/audits/era5_2015_2025_cas_esm2_0_ssp245_validation_summary.csv`](results/audits/era5_2015_2025_cas_esm2_0_ssp245_validation_summary.csv)
   and
   [`results/audits/qm_qdm_holdout_3x3_method_summary.csv`](results/audits/qm_qdm_holdout_3x3_method_summary.csv).
+- **Quantile-bound sensitivity:** Q02–Q98 and Q05–Q95 were evaluated as
+  quantile-bound sensitivity cases (the three-model historical holdout used a
+  1959–1988 fit and 1989–2014 evaluation). The 17-model distribution diagnostic
+  suggested narrower Q05–Q95 bounds for the high tail of sfcWind, but labelled
+  this as diagnostic guidance rather than a production decision; the final
+  production configuration retained Q02–Q98 for consistency across variables
+  and models. Quantile-bound sensitivity is distinct from the variable-specific
+  Route-D method choice. See
+  [`results/audits/qm_qdm_holdout_3x3_monthly_metrics.csv`](results/audits/qm_qdm_holdout_3x3_monthly_metrics.csv),
+  [`results/audits/qm_distribution_diagnostics_17models_summary.txt`](results/audits/qm_distribution_diagnostics_17models_summary.txt),
+  and
+  [`results/audits/qm_model_variable_recommendations_17models.csv`](results/audits/qm_model_variable_recommendations_17models.csv).
 - **Two aggregation definitions:** grid-wise maps (definition 1) and national
   aggregates (definition 2).
 - **Model-first, native-grid aggregation:** per-model diagnostics are computed

@@ -1,0 +1,37 @@
+QM DISTRIBUTION DIAGNOSTICS SUMMARY
+================================================================================
+Models expected: 17
+Models failed: 0
+Monthly rows expected: 612
+Monthly rows created: 612
+Model-variable recommendation rows: 51
+Figures created: 0
+High-tail model-variable cases: 17
+Near-zero multiplicative-risk cases: 0
+
+INTERPRETATION NOTES
+- Each calendar month uses 56 annual samples at each grid cell.
+- Spatial grid cells are summarized after grid-cell diagnostics.
+- Grid cells are not treated as independent temporal samples.
+- Q99 sensitivity removes the single largest annual value at each grid cell.
+- Suggested quantile bounds are diagnostics, not the final QM decision.
+- Future scenario data are not read or modified by this program.
+
+HIGH-TAIL CASES
+- ACCESS-CM2 sfcWind: worst P90 sensitivity=14.2293%
+- ACCESS-ESM1-5 sfcWind: worst P90 sensitivity=14.1443%
+- AWI-CM-1-1-MR sfcWind: worst P90 sensitivity=14.4746%
+- BCC-CSM2-MR sfcWind: worst P90 sensitivity=14.2047%
+- CAS-ESM2-0 sfcWind: worst P90 sensitivity=14.4139%
+- CESM2-WACCM sfcWind: worst P90 sensitivity=14.4854%
+- CMCC-CM2-SR5 sfcWind: worst P90 sensitivity=14.4854%
+- CMCC-ESM2 sfcWind: worst P90 sensitivity=14.4854%
+- CanESM5 sfcWind: worst P90 sensitivity=14.4627%
+- FGOALS-f3-L sfcWind: worst P90 sensitivity=14.5305%
+- FIO-ESM-2-0 sfcWind: worst P90 sensitivity=14.4854%
+- IPSL-CM6A-LR sfcWind: worst P90 sensitivity=14.2821%
+- KACE-1-0-G sfcWind: worst P90 sensitivity=14.2293%
+- MPI-ESM1-2-HR sfcWind: worst P90 sensitivity=14.4746%
+- MPI-ESM1-2-LR sfcWind: worst P90 sensitivity=14.9546%
+- MRI-ESM2-0 sfcWind: worst P90 sensitivity=14.2047%
+- TaiESM1 sfcWind: worst P90 sensitivity=14.4854%

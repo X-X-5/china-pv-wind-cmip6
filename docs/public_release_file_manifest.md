@@ -112,6 +112,9 @@ placed on the deny list (kept local-only, not modified in place).
 | `results/audits/rerun_content_hashes_{before,after,comparison}.json` | ~0.4 MB | yes (content-hash walk over the four NetCDF roots; project-relative paths, no credentials) |
 | `results/audits/era5_2015_2025_cas_esm2_0_ssp245_validation_summary.csv` | 1.4 KB | yes — 2015–2025 ERA5 validation summary (CAS-ESM2-0 SSP2-4.5); path-clean, no local paths |
 | `results/audits/qm_qdm_holdout_3x3_method_summary.csv` | 11 KB | yes — three-model QM/QDM historical holdout method summary; path-clean, no local paths |
+| `results/audits/qm_qdm_holdout_3x3_monthly_metrics.csv` | 472 KB | yes — three-model QM/QDM historical holdout per-month metrics (fit 1959–1988, eval 1989–2014; Q02–Q98 and Q05–Q95); path-clean, no local paths |
+| `results/audits/qm_distribution_diagnostics_17models_summary.txt` | 1.7 KB | yes — 17-model QM distribution-diagnostic summary (612 monthly rows, 17 high-tail sfcWind cases); path-clean, no local paths |
+| `results/audits/qm_model_variable_recommendations_17models.csv` | 14.5 KB | yes — per-model/variable quantile-bound recommendation (51 rows); path-clean, no local paths |
 
 ---
 
@@ -159,8 +162,8 @@ placed on the deny list (kept local-only, not modified in place).
 
 ## Estimated repository footprint
 
-- **Tracked files: 123** (50 scripts + 1 config + 1 notebook + 3 docs + 7 root
-  files + 25 PNGs + 9 tables + 5 final-analysis products + 22 audit files).
-- **Tracked size: 34.6 MiB**, with no single tracked file above 10 MiB.
+- **Tracked files: 126** (50 scripts + 1 config + 1 notebook + 3 docs + 7 root
+  files + 25 PNGs + 9 tables + 5 final-analysis products + 25 audit files).
+- **Tracked size: 35.1 MiB**, with no single tracked file above 10 MiB.
 - Excluded: 73 GiB of data/archive and all machine-path-tainted regenerable
   results.
