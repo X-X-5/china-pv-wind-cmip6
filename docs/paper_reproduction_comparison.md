@@ -4,6 +4,7 @@
 - Compared route: **B** (`paper_qm`) — 17-model equal-weight ensemble, monthly multiplicative QM, geodesic China-boundary intersection-area weighting.
 - **Status: Route B is a paper-like baseline (a re-implementation of the paper's described method), not an exact re-run of the paper's own code.** Absolute-value differences are characterised below, not scored as errors.
 - Read-only: no upstream stage was rerun; no existing scientific result was modified.
+- **Scope — default formal run:** native-grid diagnostics (Table-5 candidate aggregations and the sfcWind year-2100 area-weighting diagnostic) are **not** included; enable them with `--include-native-grid-diagnostics` (requires `data/processed/energy_metrics/`).
 
 ## Evidence classification
 
@@ -65,16 +66,6 @@ The following paper values are approximate textual/figure anchors and are **not*
 - **sfcWind decline `~0.1 m s-1` over 2015-2100** (paper section 4.1) — approximate anchor. Route B (year-2015 − year-2100): 0.045 / 0.035 / 0.059 m s-1.
 - **WPD `~1 W m-2` lower (SSP2-4.5) and `~2 W m-2` lower (SSP5-8.5) vs SSP1-2.6** (paper section 4.3) — approximate anchors.
 
-### sfcWind year-2100 area-weighting diagnostic (context for the `~1.7` anchor)
-
-Area-weighted vs plain native-grid year-2100 sfcWind mean; context only, not a strict comparison.
-
-| ssp | area_weighted_2100 | plain_native_2100 |
-| --- | --- | --- |
-| ssp126 | 1.27232 | 1.40148 |
-| ssp245 | 1.26923 | 1.39672 |
-| ssp585 | 1.24133 | 1.36912 |
-
 ## Table 5 (reported numerical value, non-identifiable aggregation)
 
 The paper's Table 5 reports WPD maximum/minimum/median/std per SSP; the aggregation order (time/space/model) is unspecified, so the values are reported but **not** force-matched.
@@ -84,36 +75,6 @@ The paper's Table 5 reports WPD maximum/minimum/median/std per SSP; the aggregat
 | ssp126 | 2551.42 | 0.0029 | 9.78 | 151.49 |
 | ssp245 | 2561.68 | 0.0044 | 9.62 | 150.22 |
 | ssp585 | 2796.12 | 0.0028 | 9.84 | 150.4 |
-
-### Candidate aggregations (non-identifiable)
-
-All three candidates pool the full 2015-2100 monthly samples over China-intersection native-grid cells; they differ only in weighting. None matches the paper's four statistics simultaneously (the paper minimum ~0.003 W m-2 is two orders of magnitude below every candidate, implying a different, unspecified aggregation).
-
-| scenario | candidate | description | area_weighted | model_weighting | months_pooled | maximum | minimum | median | std |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ssp126 | A | 17 models x 2015-2100 months x China cells, plain pooled | no | pooled (each sample equal) | yes | 7616.54 | 0.000254926 | 9.51462 | 145.998 |
-| ssp126 | B | per-model stats then 17-model equal-weight mean | no | equal-weight mean of per-model stats | yes (within each model) | 5361.02 | 0.0010734 | 9.50935 | 152.505 |
-| ssp126 | C | pooled, area-weighted by china_intersection_area_km2 | yes (china_intersection_area_km2) | pooled (weighted by cell area) | yes | 7616.54 | 0.000254926 | 8.60844 | 72.868 |
-| ssp245 | A | 17 models x 2015-2100 months x China cells, plain pooled | no | pooled (each sample equal) | yes | 6426.45 | 0.000251781 | 9.78288 | 144.999 |
-| ssp245 | B | per-model stats then 17-model equal-weight mean | no | equal-weight mean of per-model stats | yes (within each model) | 5081.57 | 0.0011007 | 9.69049 | 151.624 |
-| ssp245 | C | pooled, area-weighted by china_intersection_area_km2 | yes (china_intersection_area_km2) | pooled (weighted by cell area) | yes | 6426.45 | 0.000251781 | 8.8278 | 72.5166 |
-| ssp585 | A | 17 models x 2015-2100 months x China cells, plain pooled | no | pooled (each sample equal) | yes | 6629.43 | 0.000193931 | 9.67364 | 144.81 |
-| ssp585 | B | per-model stats then 17-model equal-weight mean | no | equal-weight mean of per-model stats | yes (within each model) | 5216.44 | 0.00104671 | 9.55051 | 151.582 |
-| ssp585 | C | pooled, area-weighted by china_intersection_area_km2 | yes (china_intersection_area_km2) | pooled (weighted by cell area) | yes | 6629.43 | 0.000193931 | 8.69554 | 72.423 |
-
-### Absolute differences vs the paper's Table 5
-
-| scenario | candidate | max_absdiff | min_absdiff | median_absdiff | std_absdiff |
-| --- | --- | --- | --- | --- | --- |
-| ssp126 | A | 5065.12 | 0.00264507 | 0.265382 | 5.49228 |
-| ssp126 | B | 2809.6 | 0.0018266 | 0.270654 | 1.01469 |
-| ssp126 | C | 5065.12 | 0.00264507 | 1.17156 | 78.622 |
-| ssp245 | A | 3864.77 | 0.00414822 | 0.162879 | 5.22137 |
-| ssp245 | B | 2519.89 | 0.0032993 | 0.0704883 | 1.40391 |
-| ssp245 | C | 3864.77 | 0.00414822 | 0.792195 | 77.7034 |
-| ssp585 | A | 3833.31 | 0.00260607 | 0.166363 | 5.58951 |
-| ssp585 | B | 2420.32 | 0.00175329 | 0.289494 | 1.18175 |
-| ssp585 | C | 3833.31 | 0.00260607 | 1.14446 | 77.977 |
 
 ## Outputs
 

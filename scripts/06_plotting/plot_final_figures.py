@@ -171,7 +171,6 @@ def required_files(input_root: Path) -> dict[str, Path]:
         "maps": input_root / "final_B_D_figure_maps_1deg.nc",
         "national": input_root / "final_national_change_summary.csv",
         "method": input_root / "final_D_minus_B_summary.csv",
-        "analysis_manifest": input_root / "final_analysis_manifest.json",
     }
 
 

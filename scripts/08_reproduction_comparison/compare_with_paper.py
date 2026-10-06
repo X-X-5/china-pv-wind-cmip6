@@ -40,6 +40,12 @@ Scope rules
 * Spatial maps are compared qualitatively only (no digitisation, no
   interpolation, no pseudo-pixel RMSE); the map figure is titled "Route B
   spatial pattern with published qualitative anchors".
+
+Default (formal) mode uses only the small, tracked final-analysis products and
+never touches ``data/processed/energy_metrics/``.  The native-grid Table-5
+candidate aggregations and the sfcWind year-2100 area-weighting diagnostic are
+opt-in via ``--include-native-grid-diagnostics`` and are **not** part of the
+formal reproduction score.
 """
 
 from __future__ import annotations
@@ -630,6 +636,21 @@ def build_comparison_rows(metrics: pd.DataFrame) -> list[dict]:
 # --------------------------------------------------------------------------
 
 
+def _expected_energy_models(energy_root: Path) -> list[str]:
+    """Deterministic, ordered list of models the energy diagnostics must cover.
+
+    Canonical order when ``_canonical_models()`` is non-empty; otherwise the
+    sorted actual model subdirectories (standalone fallback). This is the single
+    source of truth shared by ``precheck_inputs`` and
+    ``compute_table5_and_sfcwind_diag``, so the two always operate on the same
+    model set and the precheck enforces completeness of that exact set.
+    """
+    canonical = _canonical_models()
+    if canonical:
+        return list(canonical)
+    return sorted(p.name for p in energy_root.iterdir() if p.is_dir())
+
+
 def compute_table5_and_sfcwind_diag():
     """Stream Route B energy NetCDFs (no energy computation rerun).
 
@@ -642,10 +663,7 @@ def compute_table5_and_sfcwind_diag():
 
     shapefile = get_path("china_shapefile")
     energy_root = get_path("data_processed_energy_metrics")
-    models = sorted(p.name for p in energy_root.iterdir() if p.is_dir())
-    _canonical = _canonical_models()
-    if _canonical:
-        models = [m for m in _canonical if (energy_root / m).is_dir()] or models
+    models = _expected_energy_models(energy_root)
 
     # Precompute per-model China intersection mask + area once.
     model_weights: dict[str, dict] = {}
@@ -991,8 +1009,10 @@ def plot_spatial_pattern() -> Path:
 # --------------------------------------------------------------------------
 
 
-def write_markdown(metrics: pd.DataFrame, table5: list[dict], sfc_diag: dict) -> None:
+def write_markdown(metrics: pd.DataFrame, table5: list[dict], sfc_diag: dict, include_diagnostics: bool) -> None:
     lines: list[str] = []
+
+    diag_label = "> **Optional native-grid diagnostics; not part of the formal reproduction score.**"
 
     def metric_val(variable: str, ssp: str, col: str) -> float:
         sub = metrics[(metrics["variable"] == variable) & (metrics["ssp"] == ssp)]
@@ -1007,6 +1027,14 @@ def write_markdown(metrics: pd.DataFrame, table5: list[dict], sfc_diag: dict) ->
                  "described method), not an exact re-run of the paper's own code.** Absolute-value "
                  "differences are characterised below, not scored as errors.")
     lines.append("- Read-only: no upstream stage was rerun; no existing scientific result was modified.")
+    if include_diagnostics:
+        lines.append("- **Scope — extended run:** native-grid diagnostics are included below and are "
+                     "explicitly marked optional (not part of the formal reproduction score).")
+    else:
+        lines.append("- **Scope — default formal run:** native-grid diagnostics (Table-5 candidate "
+                     "aggregations and the sfcWind year-2100 area-weighting diagnostic) are **not** "
+                     "included; enable them with `--include-native-grid-diagnostics` (requires "
+                     "`data/processed/energy_metrics/`).")
     lines.append("")
 
     lines.append("## Evidence classification")
@@ -1091,18 +1119,21 @@ def write_markdown(metrics: pd.DataFrame, table5: list[dict], sfc_diag: dict) ->
                  "(paper section 4.3) — approximate anchors.")
     lines.append("")
 
-    lines.append("### sfcWind year-2100 area-weighting diagnostic (context for the `~1.7` anchor)")
-    lines.append("")
-    lines.append("Area-weighted vs plain native-grid year-2100 sfcWind mean; context only, not a strict "
-                 "comparison.")
-    lines.append("")
-    sfc_rows = []
-    for ssp in SCENARIOS:
-        d = sfc_diag.get(ssp, {})
-        sfc_rows.append({"ssp": ssp, "area_weighted_2100": d.get("area_weighted_2100"),
-                         "plain_native_2100": d.get("plain_2100")})
-    lines.append(_md_table(pd.DataFrame(sfc_rows)))
-    lines.append("")
+    if include_diagnostics:
+        lines.append(diag_label)
+        lines.append("")
+        lines.append("### sfcWind year-2100 area-weighting diagnostic (context for the `~1.7` anchor)")
+        lines.append("")
+        lines.append("Area-weighted vs plain native-grid year-2100 sfcWind mean; context only, not a strict "
+                     "comparison.")
+        lines.append("")
+        sfc_rows = []
+        for ssp in SCENARIOS:
+            d = sfc_diag.get(ssp, {})
+            sfc_rows.append({"ssp": ssp, "area_weighted_2100": d.get("area_weighted_2100"),
+                             "plain_native_2100": d.get("plain_2100")})
+        lines.append(_md_table(pd.DataFrame(sfc_rows)))
+        lines.append("")
 
     lines.append("## Table 5 (reported numerical value, non-identifiable aggregation)")
     lines.append("")
@@ -1113,21 +1144,24 @@ def write_markdown(metrics: pd.DataFrame, table5: list[dict], sfc_diag: dict) ->
     t5_rows = [{"scenario": ssp, **PAPER_TABLE5[ssp]} for ssp in SCENARIOS]
     lines.append(_md_table(pd.DataFrame(t5_rows)))
     lines.append("")
-    lines.append("### Candidate aggregations (non-identifiable)")
-    lines.append("")
-    lines.append("All three candidates pool the full 2015-2100 monthly samples over China-intersection "
-                 "native-grid cells; they differ only in weighting. None matches the paper's four "
-                 "statistics simultaneously (the paper minimum ~0.003 W m-2 is two orders of magnitude "
-                 "below every candidate, implying a different, unspecified aggregation).")
-    lines.append("")
-    lines.append(_md_table(pd.DataFrame(table5)[["scenario", "candidate", "description",
-                                                 "area_weighted", "model_weighting", "months_pooled",
-                                                 "maximum", "minimum", "median", "std"]]))
-    lines.append("")
-    lines.append("### Absolute differences vs the paper's Table 5")
-    lines.append("")
-    lines.append(_md_table(pd.DataFrame(table5_absdiff(table5))))
-    lines.append("")
+    if include_diagnostics:
+        lines.append(diag_label)
+        lines.append("")
+        lines.append("### Candidate aggregations (non-identifiable)")
+        lines.append("")
+        lines.append("All three candidates pool the full 2015-2100 monthly samples over China-intersection "
+                     "native-grid cells; they differ only in weighting. None matches the paper's four "
+                     "statistics simultaneously (the paper minimum ~0.003 W m-2 is two orders of magnitude "
+                     "below every candidate, implying a different, unspecified aggregation).")
+        lines.append("")
+        lines.append(_md_table(pd.DataFrame(table5)[["scenario", "candidate", "description",
+                                                     "area_weighted", "model_weighting", "months_pooled",
+                                                     "maximum", "minimum", "median", "std"]]))
+        lines.append("")
+        lines.append("### Absolute differences vs the paper's Table 5")
+        lines.append("")
+        lines.append(_md_table(pd.DataFrame(table5_absdiff(table5))))
+        lines.append("")
 
     lines.append("## Outputs")
     lines.append("")
@@ -1144,6 +1178,62 @@ def write_markdown(metrics: pd.DataFrame, table5: list[dict], sfc_diag: dict) ->
 # --------------------------------------------------------------------------
 
 
+def precheck_inputs(include_diagnostics: bool) -> None:
+    """Validate every required input before any output file is written.
+
+    A missing input raises ``SystemExit(1)`` after listing every missing path,
+    so a run never leaves a partially-written set of outputs behind.
+    """
+    missing: list[str] = []
+
+    def _require(path: Path, label: str) -> None:
+        if not path.is_file():
+            missing.append(f"{label}: {path}")
+
+    _require(ENSEMBLE_CSV, "ensemble annual series CSV")
+    _require(MAPS_NC, "1-degree figure maps NetCDF")
+
+    shapefile = get_path("china_shapefile")
+    _require(shapefile, "China analysis boundary")
+    for suffix in (".shx", ".dbf", ".prj"):
+        _require(shapefile.with_suffix(suffix), "China analysis boundary")
+
+    if include_diagnostics:
+        energy_root = get_path("data_processed_energy_metrics")
+        if not energy_root.is_dir():
+            missing.append(f"energy metrics directory: {energy_root}")
+        else:
+            expected = _expected_energy_models(energy_root)
+            if not expected:
+                missing.append(
+                    f"energy metrics directory has no model subdirectories: {energy_root}"
+                )
+            for model in expected:
+                model_dir = energy_root / model
+                if not model_dir.is_dir():
+                    missing.append(f"energy metrics model directory: {model_dir}")
+                for scenario in SCENARIOS:
+                    _require(
+                        model_dir / scenario
+                        / f"energy_monthly_{model}_{scenario}_paper_qm_199401-210012.nc",
+                        "energy metrics NetCDF",
+                    )
+
+    if missing:
+        print("compare_with_paper.py: missing required input(s):", file=sys.stderr)
+        for item in missing:
+            print(f"  - {item}", file=sys.stderr)
+        if include_diagnostics:
+            print(
+                "\nThe native-grid diagnostics require the full "
+                "data/processed/energy_metrics/ tree. Re-run without "
+                "--include-native-grid-diagnostics for the default formal "
+                "comparison.",
+                file=sys.stderr,
+            )
+        raise SystemExit(1)
+
+
 def main() -> int:
     import argparse
 
@@ -1153,13 +1243,32 @@ def main() -> int:
                     "scientific result is modified; only the comparison CSVs, "
                     "Markdown report, and two qualitative figures are written."
     )
-    parser.parse_args()
+    parser.add_argument(
+        "--include-native-grid-diagnostics",
+        action="store_true",
+        help="Also compute the optional native-grid Table-5 candidate "
+             "aggregations and the sfcWind year-2100 area-weighting diagnostic. "
+             "Requires the full data/processed/energy_metrics/ tree.",
+    )
+    args = parser.parse_args()
+    include_diagnostics = args.include_native_grid_diagnostics
 
-    TABLES.mkdir(parents=True, exist_ok=True)
-    FIGURES.mkdir(parents=True, exist_ok=True)
+    # Validate every required input up front so a missing input never leaves a
+    # partially-written set of outputs behind.
+    precheck_inputs(include_diagnostics)
 
     df = load_route_b_series()
     metrics = compute_route_b_metrics(df)
+
+    # Optional native-grid diagnostics are computed here (read-only) before any
+    # output file is written, so a failure cannot leave partial formal outputs.
+    if include_diagnostics:
+        table5, sfc_diag = compute_table5_and_sfcwind_diag()
+    else:
+        table5, sfc_diag = [], {}
+
+    TABLES.mkdir(parents=True, exist_ok=True)
+    FIGURES.mkdir(parents=True, exist_ok=True)
 
     inv = paper_baseline_rows()
     _inv_cols = ["item_id", "metric", "variable", "ssp", "period", "paper_value", "unit",
@@ -1184,9 +1293,7 @@ def main() -> int:
     ]
     trend.to_csv(OUT_TREND_MK, index=False, encoding="utf-8-sig")
 
-    table5, sfc_diag = compute_table5_and_sfcwind_diag()
-
-    write_markdown(metrics, table5, sfc_diag)
+    write_markdown(metrics, table5, sfc_diag, include_diagnostics)
 
     fig1 = plot_annual_series(df)
     fig2 = plot_spatial_pattern()
@@ -1214,16 +1321,17 @@ def main() -> int:
         print(f"  {ssp}: pvpot paper={pv_paper[ssp]} vs B2100={mp['year_2100']:.3f} "
               f"| sfcWind paper=1.7 vs B2100={ms['year_2100']:.3f}")
 
-    print("\nTable 5 candidates (max/min/median/std):")
-    for c in table5:
-        print(f"  {c['scenario']} {c['candidate']}: {c['maximum']:.2f} / {c['minimum']:.4f} / "
-              f"{c['median']:.3f} / {c['std']:.2f}  [{c['area_weighted']}]")
-    print("\nTable 5 verdict: non-identifiable (no candidate matches all four statistics).")
+    if include_diagnostics:
+        print("\nTable 5 candidates (max/min/median/std):")
+        for c in table5:
+            print(f"  {c['scenario']} {c['candidate']}: {c['maximum']:.2f} / {c['minimum']:.4f} / "
+                  f"{c['median']:.3f} / {c['std']:.2f}  [{c['area_weighted']}]")
+        print("\nTable 5 verdict: non-identifiable (no candidate matches all four statistics).")
 
-    print("\nsfcWind 2100 diagnostic (area-weighted vs plain native-grid):")
-    for ssp in SCENARIOS:
-        d = sfc_diag[ssp]
-        print(f"  {ssp}: area-weighted={d['area_weighted_2100']:.4f}  plain-native={d['plain_2100']:.4f}")
+        print("\nsfcWind 2100 diagnostic (area-weighted vs plain native-grid):")
+        for ssp in SCENARIOS:
+            d = sfc_diag[ssp]
+            print(f"  {ssp}: area-weighted={d['area_weighted_2100']:.4f}  plain-native={d['plain_2100']:.4f}")
 
     return 0 if ok else 1
 
