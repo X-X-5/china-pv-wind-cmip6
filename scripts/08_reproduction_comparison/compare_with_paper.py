@@ -24,6 +24,11 @@ Scope rules
 * Paper "by 2100" endpoints are compared against the Route B **year-2100**
   annual ensemble mean, never against the 2080-2100 period mean (that mean is
   reported only as ``late-century period mean``).
+* Each paper value carries an ``evidence_class`` field -- ``reported_numeric_value``
+  (paper body text / Table 4 / Table 5; quantitative, definition-consistent) or
+  ``approximate_anchor`` (rough "~x" anchors; direction-only, excluded from strict
+  error / RMSE / overall scoring).  Pixel-digitised Fig. 2 series are abandoned
+  and never emitted.
 * Approximate paper values are reported with ``absolute_difference`` and a
   direction / ranking-consistency flag only -- no fake-precision relative
   errors.
@@ -108,6 +113,37 @@ PAPER_TABLE5 = {
     "ssp245": {"maximum": 2561.68, "minimum": 0.0044, "median": 9.62, "std": 150.22},
     "ssp585": {"maximum": 2796.12, "minimum": 0.0028, "median": 9.84, "std": 150.40},
 }
+
+# Table 4 Mann-Kendall Z (exact, per variable/SSP), for the paper vs Route B Z check.
+PAPER_TABLE4_Z = {
+    "rsds": {"ssp126": 11.8, "ssp245": 11.6, "ssp585": 10.9},
+    "tas_c": {"ssp126": 9.2, "ssp245": 12.7, "ssp585": 13.3},
+    "sfcWind_10m": {"ssp126": -5.2, "ssp245": -7.9, "ssp585": -9.9},
+}
+
+# Evidence classification (by source).  ``reported_numeric_value`` rows (paper body text,
+# Table 4, Table 5) are eligible for quantitative, definition-consistent comparison.
+# ``approximate_anchor`` rows (rough "~x" anchors) are retained as direction-only anchors
+# and are excluded from any strict error / RMSE / overall score.  Pixel-digitised Fig. 2
+# series are abandoned and never emitted.
+EVIDENCE_BY_PREFIX = {
+    "pvpot_2100": "reported_numeric_value",
+    "pvpot_slope": "reported_numeric_value",
+    "sfcwind_2100": "approximate_anchor",
+    "sfcwind_decline": "approximate_anchor",
+    "table4_z": "reported_numeric_value",
+    "table4_dir": "reported_numeric_value",
+    "wpd_diff": "approximate_anchor",
+    "table5_": "reported_numeric_value",
+    "table3_": "reported_numeric_value",
+}
+
+
+def _classify(item_id: str) -> str:
+    for prefix, cls in EVIDENCE_BY_PREFIX.items():
+        if item_id.startswith(prefix):
+            return cls
+    return "reported_numeric_value"
 
 
 # --------------------------------------------------------------------------
@@ -377,6 +413,8 @@ def paper_baseline_rows() -> list[dict]:
             "definition_note": "project uses identical 8-grade thresholds",
         })
 
+    for row in rows:
+        row["evidence_class"] = _classify(row["item_id"])
     return rows
 
 
@@ -453,6 +491,11 @@ def build_comparison_rows(metrics: pd.DataFrame) -> list[dict]:
             abs_diff = abs(route_b_value - pv)
         else:
             abs_diff = math.nan
+        evidence_class = base["evidence_class"]
+        final_note = note or base["definition_note"]
+        if evidence_class == "approximate_anchor":
+            final_note = (final_note + " " if final_note else "") + \
+                "[approximate_anchor: direction-only; excluded from strict error summary]"
         rows.append({
             "item_id": row_id or item_id,
             "paper_metric": base["metric"],
@@ -463,11 +506,12 @@ def build_comparison_rows(metrics: pd.DataFrame) -> list[dict]:
             "paper_unit": unit,
             "exact_or_approx": base["exact_or_approx"],
             "comparability_grade": base["comparability_grade"],
+            "evidence_class": evidence_class,
             "route_b_value": route_b_value,
             "route_b_value_description": route_b_desc,
             "absolute_difference": abs_diff,
             "direction_or_ranking_match": direction_match,
-            "note": note or base["definition_note"],
+            "note": final_note,
         })
 
     # PVpot year-2100 (paper 196/193/188 vs Route B year-2100).
@@ -816,21 +860,11 @@ def plot_annual_series(df: pd.DataFrame) -> Path:
         ax.tick_params(axis="x", labelbottom=False)
 
     for ax, (var, title, ylabel, endpoints) in zip(axes, panels):
-        sfc_vals: list[np.ndarray] = []
         for ssp in SCENARIOS:
             years, vals = series_for(df, var, ssp)
             ax.plot(years, vals, color=colors[ssp], lw=1.4)
-            if var == "sfcWind_10m":
-                sfc_vals.append(vals)
 
-        if var == "sfcWind_10m":
-            ax.axhline(1.7, color="0.25", ls="--", lw=1)
-            allv = np.concatenate(sfc_vals)
-            ylo = float(np.nanmin(allv)) - 0.04
-            ax.set_ylim(ylo, 1.78)
-            ax.text(2016, 1.71, "published ~1.7 m s$^{-1}$\n(year-2100 anchor)",
-                    fontsize=8, va="bottom", ha="left", color="0.25")
-        elif endpoints:
+        if endpoints:
             for ssp, pv in endpoints.items():
                 ax.scatter([2100], [pv], marker="x", s=70, color=colors[ssp],
                            linewidths=1.7, zorder=6)
@@ -846,13 +880,13 @@ def plot_annual_series(df: pd.DataFrame) -> Path:
         Line2D([], [], color=colors["ssp245"], lw=1.4, label="SSP245"),
         Line2D([], [], color=colors["ssp585"], lw=1.4, label="SSP585"),
         Line2D([], [], marker="x", color="0.15", lw=0, ms=7, markeredgewidth=1.7,
-               label="Published approximate year-2100 endpoint"),
+               label="reported approximate year-2100 endpoints"),
     ]
     leg_ax.legend(handles=handles, loc="center", ncol=4, fontsize=8.5,
                   frameon=False, handlelength=2.2, columnspacing=1.4, borderaxespad=0)
 
     fig.suptitle("Route B (paper_qm): annual ensemble means, 2015–2100\n"
-                 "Published approximate year-2100 values shown as qualitative anchors",
+                 "reported approximate year-2100 PVpot endpoints shown as ×",
                  fontsize=11)
     out = FIGURES / "FigRC01_route_B_annual_series_with_paper_endpoint_markers.png"
     fig.savefig(out, dpi=150)
@@ -959,13 +993,34 @@ def plot_spatial_pattern() -> Path:
 
 def write_markdown(metrics: pd.DataFrame, table5: list[dict], sfc_diag: dict) -> None:
     lines: list[str] = []
+
+    def metric_val(variable: str, ssp: str, col: str) -> float:
+        sub = metrics[(metrics["variable"] == variable) & (metrics["ssp"] == ssp)]
+        return float(sub.iloc[0][col]) if not sub.empty else float("nan")
+
     lines.append("# Paper reproduction comparison (Route B vs Y. Fan et al. 2025)")
     lines.append("")
     lines.append(f"- Paper: {PAPER_CITATION} (DOI {PAPER_DOI})")
     lines.append("- Compared route: **B** (`paper_qm`) — 17-model equal-weight ensemble, "
                  "monthly multiplicative QM, geodesic China-boundary intersection-area weighting.")
+    lines.append("- **Status: Route B is a paper-like baseline (a re-implementation of the paper's "
+                 "described method), not an exact re-run of the paper's own code.** Absolute-value "
+                 "differences are characterised below, not scored as errors.")
     lines.append("- Read-only: no upstream stage was rerun; no existing scientific result was modified.")
     lines.append("")
+
+    lines.append("## Evidence classification")
+    lines.append("")
+    lines.append("Every paper value is classified by evidence source; only `reported_numeric_value` rows "
+                 "are eligible for quantitative (definition-consistent) comparison.")
+    lines.append("")
+    lines.append("| class | definition | treatment |")
+    lines.append("| --- | --- | --- |")
+    lines.append("| `reported_numeric_value` | explicit number in the paper body text, Table 4, or Table 5 | quantitative comparison allowed where metric definitions match |")
+    lines.append("| `approximate_anchor` | rough textual/figure anchor (e.g. \"~1.7 m s-1\", \"~0.1 m s-1\") | retained as an anchor only; direction-only; excluded from strict error / RMSE / overall score |")
+    lines.append("| (pixel-digitised series) | automated Fig. 2 pixel extraction | abandoned; not present in any formal output |")
+    lines.append("")
+
     lines.append("## Definitional notes (per audit corrections)")
     lines.append("")
     lines.append("1. **Wind shear exponent** — paper Eq. 7 is "
@@ -975,25 +1030,71 @@ def write_markdown(metrics: pd.DataFrame, table5: list[dict], sfc_diag: dict) ->
     lines.append("2. **Spatial averaging** — the paper states only a spatial mean over mainland-China "
                  "grid cells; it does not specify the boundary mask, partial-cell treatment, or area "
                  "weighting. The project uses WGS84 boundary-intersection area weighting. The PVpot "
-                 "offset cannot be attributed solely to area weighting.")
+                 "offset cannot be attributed solely to area weighting; see the M1/M5 spatial-domain "
+                 "sensitivity below.")
     lines.append("3. **Hub height** — the paper does not state a numeric hub height; the project uses "
                  "`100 m`. Recorded as a project assumption.")
     lines.append("4. **\"by 2100\" endpoints** — paper PVpot/sfcWind end-of-century values are compared "
                  "against the Route B **year-2100** annual ensemble mean; the 2080-2100 mean is reported "
-                 "only as `late-century period mean` and never substitutes for the 2100 endpoint.")
-    lines.append("5. **Table 5** — WPD max/min/median/std are reported per SSP (future samples); "
-                 "time/space/model aggregation order is unspecified, so it is treated as "
-                 "**non-identifiable** (three candidate aggregations only).")
-    lines.append("")
-    lines.append("## Route B Mann-Kendall + OLS trends (2015-2100)")
-    lines.append("")
-    lines.append(_md_table(metrics[["variable", "ssp", "n_years", "mk_Z", "mk_p_two_sided",
-                                    "mk_direction", "ols_slope_per_yr", "theil_sen_slope_per_yr"]]))
+                 "only as `late-century period mean` and never substitutes for the 2100 endpoint. The "
+                 "sfcWind `~1.7 m s-1` value is an **approximate textual anchor**, not a strict "
+                 "quantitative endpoint.")
+    lines.append("5. **Table 5** — WPD max/min/median/std are **reported numerical values** from the "
+                 "paper's Table 5, but the time/space/model aggregation order is unspecified, so they "
+                 "are treated as **non-identifiable** (three candidate aggregations are shown for "
+                 "transparency, not force-matched).")
     lines.append("")
 
-    lines.append("## sfcWind year-2100 endpoint diagnostic (area-weighted vs plain native-grid)")
+    lines.append("## Spatial-domain sensitivity (M1 vs M5)")
     lines.append("")
-    lines.append("Used only to interpret the 1.7 vs Route B gap; not a new formal dual-method result.")
+    lines.append("PVpot year-2100 national mean under two aggregation domains, against the paper's "
+                 "approximate endpoints (W m-2):")
+    lines.append("")
+    lines.append("| aggregation | ssp126 | ssp245 | ssp585 |")
+    lines.append("| --- | --- | --- | --- |")
+    lines.append("| M1 — China intersection-area weighted | 204.55 | 201.83 | 197.94 |")
+    lines.append("| M5 — rectangular simple domain | 197.38 | 194.58 | 190.79 |")
+    lines.append("| Paper (approximate) | ~196 | ~193 | ~188 |")
+    lines.append("")
+    lines.append("> Rectangular-domain aggregation explains approximately 72–84% of the absolute PVpot "
+                 "difference. This evidence is consistent with, but does not prove, a difference in "
+                 "spatial aggregation domain.")
+    lines.append("")
+
+    lines.append("## Route B Mann-Kendall + OLS trends (2015-2100)")
+    lines.append("")
+    lines.append("Route B results with the paper's Table 4 Mann–Kendall Z; the **sign** is the comparable "
+                 "quantity (Z magnitude is not directly comparable because the series construction differs).")
+    lines.append("")
+    trend_cols = ["variable", "ssp", "n_years", "mk_Z", "paper_table4_Z", "mk_p_two_sided",
+                  "mk_direction", "ols_slope_per_yr", "theil_sen_slope_per_yr"]
+    trend_md = metrics.copy()
+    trend_md["paper_table4_Z"] = [PAPER_TABLE4_Z.get(v, {}).get(s, np.nan)
+                                  for v, s in zip(trend_md["variable"], trend_md["ssp"])]
+    lines.append(_md_table(trend_md[trend_cols]))
+    lines.append("")
+
+    lines.append("## Approximate textual/figure anchors (direction-only)")
+    lines.append("")
+    lines.append("The following paper values are approximate textual/figure anchors and are **not** used "
+                 "for strict error or an overall reproduction score.")
+    lines.append("")
+    sfc2100 = {s: metric_val("sfcWind_10m", s, "year_2100") for s in SCENARIOS}
+    sfcdecl = {s: metric_val("sfcWind_10m", s, "decline_endpoint_2015_2100") for s in SCENARIOS}
+    lines.append(f"- **sfcWind `~1.7 m s-1` at year 2100** (paper section 4.1) — approximate anchor. "
+                 f"Route B year-2100 area-weighted mean: "
+                 f"{sfc2100['ssp126']:.3f} / {sfc2100['ssp245']:.3f} / {sfc2100['ssp585']:.3f} m s-1.")
+    lines.append(f"- **sfcWind decline `~0.1 m s-1` over 2015-2100** (paper section 4.1) — approximate "
+                 f"anchor. Route B (year-2015 − year-2100): "
+                 f"{sfcdecl['ssp126']:.3f} / {sfcdecl['ssp245']:.3f} / {sfcdecl['ssp585']:.3f} m s-1.")
+    lines.append("- **WPD `~1 W m-2` lower (SSP2-4.5) and `~2 W m-2` lower (SSP5-8.5) vs SSP1-2.6** "
+                 "(paper section 4.3) — approximate anchors.")
+    lines.append("")
+
+    lines.append("### sfcWind year-2100 area-weighting diagnostic (context for the `~1.7` anchor)")
+    lines.append("")
+    lines.append("Area-weighted vs plain native-grid year-2100 sfcWind mean; context only, not a strict "
+                 "comparison.")
     lines.append("")
     sfc_rows = []
     for ssp in SCENARIOS:
@@ -1003,7 +1104,16 @@ def write_markdown(metrics: pd.DataFrame, table5: list[dict], sfc_diag: dict) ->
     lines.append(_md_table(pd.DataFrame(sfc_rows)))
     lines.append("")
 
-    lines.append("## Table 5 candidate aggregations (non-identifiable)")
+    lines.append("## Table 5 (reported numerical value, non-identifiable aggregation)")
+    lines.append("")
+    lines.append("The paper's Table 5 reports WPD maximum/minimum/median/std per SSP; the aggregation "
+                 "order (time/space/model) is unspecified, so the values are reported but **not** "
+                 "force-matched.")
+    lines.append("")
+    t5_rows = [{"scenario": ssp, **PAPER_TABLE5[ssp]} for ssp in SCENARIOS]
+    lines.append(_md_table(pd.DataFrame(t5_rows)))
+    lines.append("")
+    lines.append("### Candidate aggregations (non-identifiable)")
     lines.append("")
     lines.append("All three candidates pool the full 2015-2100 monthly samples over China-intersection "
                  "native-grid cells; they differ only in weighting. None matches the paper's four "
@@ -1052,16 +1162,17 @@ def main() -> int:
     metrics = compute_route_b_metrics(df)
 
     inv = paper_baseline_rows()
-    pd.DataFrame(inv).to_csv(OUT_INVENTORY, index=False, encoding="utf-8-sig")
+    _inv_cols = ["item_id", "metric", "variable", "ssp", "period", "paper_value", "unit",
+                 "source_figure_table", "source_page", "exact_or_approx", "comparability_grade",
+                 "evidence_class", "definition_note"]
+    pd.DataFrame(inv)[_inv_cols].to_csv(OUT_INVENTORY, index=False, encoding="utf-8-sig")
 
     comp = build_comparison_rows(metrics)
     pd.DataFrame(comp).to_csv(OUT_COMPARISON, index=False, encoding="utf-8-sig")
 
     trend = metrics.copy()
-    t4 = {"rsds": {"ssp126": 11.8, "ssp245": 11.6, "ssp585": 10.9},
-          "tas_c": {"ssp126": 9.2, "ssp245": 12.7, "ssp585": 13.3},
-          "sfcWind_10m": {"ssp126": -5.2, "ssp245": -7.9, "ssp585": -9.9}}
-    trend["paper_ref_mk_Z"] = [t4.get(v, {}).get(s, np.nan) for v, s in zip(trend["variable"], trend["ssp"])]
+    trend["paper_ref_mk_Z"] = [PAPER_TABLE4_Z.get(v, {}).get(s, np.nan)
+                               for v, s in zip(trend["variable"], trend["ssp"])]
     pv_slopes = {"ssp126": 0.07, "ssp585": -0.03}
     trend["paper_ref_slope_per_yr"] = [
         pv_slopes.get(s, np.nan) if v == "pvpot" else np.nan
