@@ -110,6 +110,8 @@ placed on the deny list (kept local-only, not modified in place).
 | `results/audits/future_qc_all.csv` | 1.23 MB | yes |
 | `results/audits/cmip6_ceda_missing_recheck.csv` | 1.1 KB | yes — CEDA source URLs (`https://data.ceda.ac.uk/…`) only; no local paths |
 | `results/audits/rerun_content_hashes_{before,after,comparison}.json` | ~0.4 MB | yes (content-hash walk over the four NetCDF roots; project-relative paths, no credentials) |
+| `results/audits/era5_2015_2025_cas_esm2_0_ssp245_validation_summary.csv` | 1.4 KB | yes — 2015–2025 ERA5 validation summary (CAS-ESM2-0 SSP2-4.5); path-clean, no local paths |
+| `results/audits/qm_qdm_holdout_3x3_method_summary.csv` | 11 KB | yes — three-model QM/QDM historical holdout method summary; path-clean, no local paths |
 
 ---
 
@@ -157,8 +159,8 @@ placed on the deny list (kept local-only, not modified in place).
 
 ## Estimated repository footprint
 
-- **Tracked files: 121** (50 scripts + 1 config + 1 notebook + 3 docs + 7 root
-  files + 25 PNGs + 9 tables + 5 final-analysis products + 20 audit files).
+- **Tracked files: 123** (50 scripts + 1 config + 1 notebook + 3 docs + 7 root
+  files + 25 PNGs + 9 tables + 5 final-analysis products + 22 audit files).
 - **Tracked size: 34.6 MiB**, with no single tracked file above 10 MiB.
 - Excluded: 73 GiB of data/archive and all machine-path-tainted regenerable
   results.

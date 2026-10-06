@@ -13,8 +13,10 @@ reproduces the study's baseline route and an optimized variant.
 ## 1. Purpose
 
 - **Reproduce** the baseline (paper) route of the PV/wind study.
-- **Optimize** the bias-correction chain with a QDM variant and evaluate the
-  resulting change in PV potential, wind power density, and complementarity.
+- **Optimize** the bias-correction chain with a validation-informed mixed
+  QM/QDM route (monthly QDM for tas and sfcWind, monthly QM for rsds) and
+  evaluate the resulting change in PV potential, wind power density, and
+  complementarity.
 - Produce 23 core B/D figures (9 paper-baseline Route B, 9 optimized-route Route D, and 5 method-comparison B−D figures), plus 2 paper-reproduction comparison figures.
 
 ## 2. Data
@@ -49,10 +51,18 @@ reproduces the study's baseline route and an optimized variant.
 
 ## 4. Routes B and D
 
-- **Route B (paper baseline):** the study's QM method — reproduces the paper
-  figures `Fig02`–`Fig10`.
-- **Route D (optimized):** the QDM variant — compared against B in
-  `Opt01`–`Opt04`.
+- **Route B (paper baseline):** monthly QM for tas, rsds and sfcWind —
+  implements the paper-baseline analyses corresponding to `Fig02`–`Fig10`.
+- **Route D (validation-informed mixed route):** monthly QDM for tas and
+  sfcWind, while retaining monthly QM for rsds — compared against B in
+  `Opt01`–`Opt04`. The fixed variable-level mapping was selected from an
+  ERA5-based 2015–2025 evaluation using the CAS-ESM2-0 SSP2-4.5 pilot and was
+  checked against a three-model historical holdout experiment. It is treated
+  as a sensitivity-oriented optimized route, not as a universally optimal
+  method for all 17 models. See
+  [`results/audits/era5_2015_2025_cas_esm2_0_ssp245_validation_summary.csv`](results/audits/era5_2015_2025_cas_esm2_0_ssp245_validation_summary.csv)
+  and
+  [`results/audits/qm_qdm_holdout_3x3_method_summary.csv`](results/audits/qm_qdm_holdout_3x3_method_summary.csv).
 - **Two aggregation definitions:** grid-wise maps (definition 1) and national
   aggregates (definition 2).
 - **Model-first, native-grid aggregation:** per-model diagnostics are computed
@@ -136,7 +146,7 @@ command); the download order is:
 1. Build/prepare the CEDA manifest (`build_cmip6_clean_manifest.py`).
 2. Download the 16 CEDA models (`download_cmip6_16models_v2.py`).
 3. Download CAS-ESM2-0 from ORNL (`download_cas_esm2_0_ornl_v2.py`).
-4. Download ERA5 from the CDS (`ERA5_download.py`).
+4. Download ERA5 from the CDS (`ERA5_download_1959-2014.py`).
 
 Then run Stage 2 (preparation) before Stage 3. Stage 7
 (`era5_2015_2025_validation.py`, `run_qm_qdm_holdout_pilot_3x3.py`) is an
@@ -207,6 +217,35 @@ These two figures are **additional** and are **not** part of the 23 core figures
 ![Route B annual series with paper endpoint markers](results/figures/reproduction_comparison/FigRC01_route_B_annual_series_with_paper_endpoint_markers.png)
 
 ![Route B spatial pattern with qualitative anchors](results/figures/reproduction_comparison/FigRC02_route_B_spatial_pattern_with_qualitative_anchors.png)
+
+### Reproduction agreement and remaining discrepancy
+
+Route B reproduces the paper's large-scale spatial patterns, scenario ordering,
+and major change directions. Quantitative comparison is limited to the paper
+values whose definitions map directly onto this pipeline's outputs: the PVpot
+year-2100 endpoints, selected PVpot trend rates, and the Table 4 Mann–Kendall
+statistics.
+
+The formal (geodesic grid-cell intersection-area-weighted) Route B PVpot at
+year 2100 is:
+
+| scenario | Route B PVpot (W m-2) | Paper (approximate) |
+| --- | --- | --- |
+| SSP1-2.6 | 204.55 | ~196 |
+| SSP2-4.5 | 201.83 | ~193 |
+| SSP5-8.5 | 197.94 | ~188 |
+
+A rectangular-domain sensitivity run explains approximately 72–84% of the
+absolute endpoint difference. This is consistent with, but does not prove, a
+difference in spatial aggregation domains.
+
+The formal results continue to use geodesic grid-cell intersection-area
+weighting; no undocumented interpolation, gap-filling, or parameter tuning is
+applied to move results toward the paper, and no pixel-perfect reproduction is
+claimed. The paper does not fully document all of its spatial-aggregation,
+regridding, and mapping steps.
+
+See [`docs/paper_reproduction_comparison.md`](docs/paper_reproduction_comparison.md).
 
 ### Selected results
 
