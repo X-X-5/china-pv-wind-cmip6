@@ -18,11 +18,10 @@ usernames, and credentials.
 
 | Pattern | Result |
 |---|---|
-| Credentials (`password`, `token`, `api_key`, `secret`, `Bearer`, `Authorization`, `AKIA…`, `ghp_…`, `sk-…`) | **None** in any script, notebook, or result file |
+| Credentials (`password`, `token`, `api_key`, `secret`, `Bearer`, `Authorization`, `AKIA…`, `ghp_…`, `sk-…`) | **None** in any script or result file |
 | Username (`<username>`) | Only in `results/audits/qm_qdm_batch_logs/*_dry_run.txt` (from the xarray warning that prints the site-packages path) and in two hand-written audit docs — all on the Deny list |
 | Local absolute path (`<project-root>`) | Present in many **generated** manifests/audits and in the hand-written audit docs (see Deny list) |
 | Active `scripts/**` absolute paths | **None** — all paths resolved via `config/project_paths.json` |
-| Notebook (`notebooks/ERA5_Data().ipynb`) | **No outputs, no absolute paths** — clean |
 
 **Consequence:** the generated files that embed the local path are placed on the
 deny list (they are all regenerable), rather than publishing machine-specific
@@ -42,14 +41,13 @@ placed on the deny list (kept local-only, not modified in place).
 | `environment.yml` | — | no | conda environment |
 | `requirements.txt` | — | no | pip reference |
 
-### Code / config / docs / notebooks
+### Code / config / docs
 
 | Path | Size | Regenerable | Reason |
 |---|---|---|---|
 | `scripts/**` (50 `.py`) | ~0.9 MiB | no | the full pipeline — primary artifact |
 | `scripts/08_reproduction_comparison/compare_with_paper.py` | 48 KB | no | read-only paper-reproduction comparison (Stage 8) |
 | `config/project_paths.json` | 2 KB | no | central path config (relative paths only) |
-| `notebooks/ERA5_Data().ipynb` | 14 KB | no | ERA5 GRIB preprocessing (no outputs) |
 | `docs/public_release_file_manifest.md` | — | no | this manifest |
 | `docs/environment_notes.md` | — | no | environment guidance |
 | `docs/paper_reproduction_comparison.md` | 6.6 KB | no | paper-reproduction comparison report (Stage 8) |
@@ -162,7 +160,7 @@ placed on the deny list (kept local-only, not modified in place).
 
 ## Estimated repository footprint
 
-- **Tracked files: 126** (50 scripts + 1 config + 1 notebook + 3 docs + 7 root
+- **Tracked files: 125** (50 scripts + 1 config + 3 docs + 7 root
   files + 25 PNGs + 9 tables + 5 final-analysis products + 25 audit files).
 - **Tracked size: 35.1 MiB**, with no single tracked file above 10 MiB.
 - Excluded: 73 GiB of data/archive and all machine-path-tainted regenerable
