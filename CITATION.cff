@@ -4,7 +4,7 @@ type: software
 title: "China PV & Wind Power under CMIP6 Scenarios"
 authors:
   - name: X-X-5
-version: "1.0.0"
-date-released: "2026-10-03"
+version: "1.1.1"
+date-released: "2026-10-06"
 license: MIT
 repository-code: "https://github.com/X-X-5/china-pv-wind-cmip6"
