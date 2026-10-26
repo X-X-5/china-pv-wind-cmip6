@@ -11,9 +11,9 @@ written to ``results/figures``.  Routes A/C are intentionally excluded.
 Main percentage conventions
 ---------------------------
 * Paper map analogues (Fig. 5 and Fig. 8): model/grid percentage change first,
-  followed by equal-weight multi-model ensemble ("口径1").
+  followed by equal-weight multi-model ensemble ("definition 1").
 * National bars and numerical conclusions: China area mean first, followed by
-  percentage change ("口径2").
+  percentage change ("definition 2").
 
 The script uses the paper-compatible B route for Fig. 2--10 and produces a
 separate B-versus-D optimization section.  WPD is logarithmically transformed
@@ -1427,10 +1427,10 @@ def main() -> int:
             },
             "periods": {key: PERIOD_LABELS[key] for key in PERIODS},
             "map_percentage_definition": (
-                "per-model grid-cell relative change followed by equal-weight ensemble (口径1)"
+                "per-model grid-cell relative change followed by equal-weight ensemble (definition 1)"
             ),
             "national_percentage_definition": (
-                "percent change of China intersection-area-weighted area mean (口径2)"
+                "percent change of China intersection-area-weighted area mean (definition 2)"
             ),
             "wpd_log_rule": (
                 "log10 applied only to displayed WPD period maps; WPD changes use raw WPD"

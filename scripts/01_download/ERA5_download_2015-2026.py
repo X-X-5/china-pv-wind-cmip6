@@ -17,7 +17,7 @@ OUTPUT_DIR = get_path("data_raw_era5_2015_2025")
 
 OUTPUT_FILE = OUTPUT_DIR / "ERA5_monthly_201501_202512.grib"
 
-# 文件夹不存在时自动创建
+# Create the directory if it does not exist
 OUTPUT_DIR.mkdir(
     parents=True,
     exist_ok=True,
@@ -69,7 +69,7 @@ request = {
     "data_format": "grib",
     "download_format": "unarchived",
 
-    # 顺序：北、西、南、东
+    # Order: North, West, South, East
     "area": [
         54,
         70,
