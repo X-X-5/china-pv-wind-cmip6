@@ -1,92 +1,38 @@
 # China PV & Wind Power under CMIP6 Scenarios
 
-A multimodel (17-model) assessment of photovoltaic (PV) and wind-energy
-potential and their complementarity over China, with Quantile-Mapping / Quantile
--Delta-Mapping (QM/QDM) bias correction against ERA5 reanalysis. This repository
-reproduces the study's baseline route and an optimized variant.
+**Research question.** How do China's photovoltaic (PV) and wind-energy potential,
+and their temporal complementarity, change under CMIP6 climate scenarios — and how
+sensitive are these estimates to the bias-correction method (monthly quantile
+mapping **QM** vs. quantile delta mapping **QDM**)?
+
+This repository implements the study's baseline bias-correction route and an
+optimized, validation-informed variant, spanning **17 CMIP6 models** and three
+SSP scenarios, corrected against **ERA5 reanalysis**. It reproduces the baseline
+route and evaluates how the method change alters PV potential, wind power density,
+and complementarity.
 
 > The repository ships the **code, configuration, and small results** — not the
-> multi-GB climate data. See [Data availability](#8-data-availability).
+> multi-GB climate data. See [Data availability](#data-availability).
 
 ---
 
-## 1. Purpose
+## 1. Approach at a glance
 
-- **Reproduce** the baseline (paper) route of the PV/wind study.
-- **Optimize** the bias-correction chain with a validation-informed mixed
-  QM/QDM route (monthly QDM for tas and sfcWind, monthly QM for rsds) and
-  evaluate the resulting change in PV potential, wind power density, and
-  complementarity.
-- Produce 23 core B/D figures (9 paper-baseline Route B, 9 optimized-route Route D, and 5 method-comparison B−D figures), plus 2 paper-reproduction comparison figures.
+- **Models / scenarios:** 17 CMIP6 models × 3 scenarios (SSP1-2.6, SSP2-4.5,
+  SSP5-8.5); variables `tas` (near-surface air temperature), `rsds` (downwelling
+  shortwave radiation), `sfcWind` (10 m wind speed).
+- **Reference:** ERA5 reanalysis (bias-correction reference and validation window).
+- **Bias correction:** monthly QM/QDM, quantiles Q02–Q98, 30-year fit window.
+- **Resource indicators:** PV potential and wind power density, plus hub-height
+  sensitivity and wind–solar complementarity.
+- **Method validation:** the Route-D method choice is fixed by an ERA5-based
+  2015–2025 evaluation and checked against a three-model historical holdout.
 
-## 2. Data
-
-- **Models:** 17 CMIP6 global climate models (ACCESS-CM2, ACCESS-ESM1-5,
-  AWI-CM-1-1-MR, BCC-CSM2-MR, CAS-ESM2-0, CESM2-WACCM, CMCC-CM2-SR5,
-  CMCC-ESM2, CanESM5, FGOALS-f3-L, FIO-ESM-2-0, IPSL-CM6A-LR, KACE-1-0-G,
-  MPI-ESM1-2-HR, MPI-ESM1-2-LR, MRI-ESM2-0, TaiESM1).
-- **Scenarios:** SSP1-2.6, SSP2-4.5, SSP5-8.5 (`ssp126`, `ssp245`, `ssp585`).
-- **Variables:** near-surface air temperature `tas`, downwelling shortwave
-  radiation `rsds`, 10 m wind speed `sfcWind`.
-- **Reanalysis:** ERA5 (used as the bias-correction reference and for the
-  validation window).
-- **Domain:** China land area within the study domain (73–135°E, 15–54°N);
-  areas south of 15°N are outside the quantitative domain. Natural Earth
-  stores the relevant geometries as separate `CHN`/`TWN`/`HKG`/`MAC` records,
-  which are unioned solely to construct the quantitative analysis boundary.
-  This analysis boundary is a scientific mask and **is not an official
-  standard map**.
-- **Spatial weighting (method C):** every national spatial mean is weighted by
-  the **geodesic intersection area** between each grid cell and the analysis
-  boundary (WGS84 ellipsoid) — not by a centre-point mask or `cos(latitude)`.
-  The boundary polygon's own geodesic area is reported as the
-  **analysis-boundary polygon area**, which is *not* official China land area.
-
-## 3. Periods
-
-- **Bias-correction calibration (fit) period:** 1959–2014.
-- **Historical analysis baseline:** 1994–2014.
-- **Future:** 2015–2100, summarised as mid-century (2040–2060) and
-  late-century (2080–2100).
-
-## 4. Routes B and D
-
-- **Route B (paper baseline):** monthly QM for tas, rsds and sfcWind —
-  implements the paper-baseline analyses corresponding to `Fig02`–`Fig10`.
-- **Route D (validation-informed mixed route):** monthly QDM for tas and
-  sfcWind, while retaining monthly QM for rsds — compared against B in
-  `Opt01`–`Opt04`. The fixed variable-level mapping was selected from an
-  ERA5-based 2015–2025 evaluation using the CAS-ESM2-0 SSP2-4.5 pilot and was
-  checked against a three-model historical holdout experiment. It is treated
-  as a sensitivity-oriented optimized route, not as a universally optimal
-  method for all 17 models. See
-  [`results/audits/era5_2015_2025_cas_esm2_0_ssp245_validation_summary.csv`](results/audits/era5_2015_2025_cas_esm2_0_ssp245_validation_summary.csv)
-  and
-  [`results/audits/qm_qdm_holdout_3x3_method_summary.csv`](results/audits/qm_qdm_holdout_3x3_method_summary.csv).
-- **Quantile-bound sensitivity:** Q02–Q98 and Q05–Q95 were evaluated as
-  quantile-bound sensitivity cases (the three-model historical holdout used a
-  1959–1988 fit and 1989–2014 evaluation). The 17-model distribution diagnostic
-  suggested narrower Q05–Q95 bounds for the high tail of sfcWind, but labelled
-  this as diagnostic guidance rather than a production decision; the final
-  production configuration retained Q02–Q98 for consistency across variables
-  and models. Quantile-bound sensitivity is distinct from the variable-specific
-  Route-D method choice. See
-  [`results/audits/qm_qdm_holdout_3x3_monthly_metrics.csv`](results/audits/qm_qdm_holdout_3x3_monthly_metrics.csv),
-  [`results/audits/qm_distribution_diagnostics_17models_summary.txt`](results/audits/qm_distribution_diagnostics_17models_summary.txt),
-  and
-  [`results/audits/qm_model_variable_recommendations_17models.csv`](results/audits/qm_model_variable_recommendations_17models.csv).
-- **Two aggregation definitions:** grid-wise maps (definition 1) and national
-  aggregates (definition 2).
-- **Model-first, native-grid aggregation:** per-model diagnostics are computed
-  on each model's native grid, then summarised there (annual national series)
-  or bilinearly interpolated to the common 1° grid before an equal-weight
-  17-model ensemble. No downscaling or gap-filling is applied.
-
-## 5. Pipeline (8 stages)
+## 2. From meteorological data to resource indicators
 
 1. **Download** — CMIP6 (CEDA) and ERA5 (CDS); `scripts/01_download/`.
-2. **Prepare** — clip to China, regrid ERA5 onto each model grid, build
-   reference periods; `scripts/02_data_preparation/`.
+2. **Prepare** — clip to China, regrid ERA5 onto each model grid, build reference
+   periods; `scripts/02_data_preparation/`.
 3. **Bias correction** — QM/QDM, quantiles Q02–Q98, 30-year window;
    `scripts/03_bias_correction/`.
 4. **Energy metrics** — PV potential and wind power density (incl. hub-height
@@ -94,12 +40,145 @@ reproduces the study's baseline route and an optimized variant.
 5. **Figure data** — multimodel ensemble + final-analysis products;
    `scripts/05_figure_data/`.
 6. **Plotting** — the 23 core figures; `scripts/06_plotting/`.
-7. **Validation** — ERA5 2015–2025 holdout / validation;
-   `scripts/07_validation/`.
-8. **Paper reproduction comparison** — Route B against published quantitative
-   and qualitative anchors; `scripts/08_reproduction_comparison/`.
+7. **Validation** — ERA5 2015–2025 holdout / validation; `scripts/07_validation/`.
+8. **Paper reproduction comparison** — Route B against published quantitative and
+   qualitative anchors; `scripts/08_reproduction_comparison/`.
 
-## 6. Running the pipeline
+**Domain.** China land area within the study domain (73–135°E, 15–54°N); areas
+south of 15°N are outside the quantitative domain. Natural Earth stores the
+relevant geometries as separate `CHN`/`TWN`/`HKG`/`MAC` records, which are unioned
+solely to construct the quantitative analysis boundary. This analysis boundary is
+a scientific mask and **is not an official standard map**.
+
+**Spatial weighting.** Every national spatial mean is weighted by the **geodesic
+intersection area** between each grid cell and the analysis boundary (WGS84
+ellipsoid) — not by a centre-point mask or `cos(latitude)`. The boundary polygon's
+own geodesic area is reported as the **analysis-boundary polygon area**, which is
+*not* official China land area.
+
+**Model-first, native-grid aggregation.** Per-model diagnostics are computed on
+each model's native grid, then summarised there (annual national series) or
+bilinearly interpolated to the common 1° grid before an equal-weight 17-model
+ensemble. No downscaling or gap-filling is applied.
+
+**Periods.** Bias-correction fit 1959–2014; historical baseline 1994–2014; future
+2015–2100, summarised as mid-century (2040–2060) and late-century (2080–2100).
+
+## 3. Bias correction and method validation
+
+### 3.1 Two routes
+
+- **Route B (paper baseline):** monthly **QM** for `tas`, `rsds` and `sfcWind` —
+  implements the paper-baseline analyses corresponding to `Fig02`–`Fig10`.
+- **Route D (validation-informed mixed route):** monthly **QDM** for `tas` and
+  `sfcWind`, retaining monthly **QM** for `rsds` — compared against B in
+  `Opt01`–`Opt04`.
+
+### 3.2 How the Route-D method was chosen
+
+The fixed variable-level mapping was selected from an **ERA5-based 2015–2025
+evaluation** using the CAS-ESM2-0 SSP2-4.5 pilot and was checked against a
+**three-model historical holdout** experiment (1959–1988 fit, 1989–2014
+evaluation). It is treated as a sensitivity-oriented optimized route, **not** as a
+universally optimal method for all 17 models.
+
+| Evidence | File |
+| --- | --- |
+| ERA5 2015–2025 validation (CAS-ESM2-0 SSP2-4.5) | `results/audits/era5_2015_2025_cas_esm2_0_ssp245_validation_summary.csv` |
+| Three-model QM/QDM holdout, method summary | `results/audits/qm_qdm_holdout_3x3_method_summary.csv` |
+| Three-model QM/QDM holdout, per-month metrics | `results/audits/qm_qdm_holdout_3x3_monthly_metrics.csv` |
+
+### 3.3 Quantile-bound sensitivity
+
+Q02–Q98 and Q05–Q95 were evaluated as quantile-bound sensitivity cases. The
+17-model distribution diagnostic suggested narrower Q05–Q95 bounds for the high
+tail of `sfcWind`, but labelled this as diagnostic guidance rather than a
+production decision; the final production configuration retained Q02–Q98 for
+consistency across variables and models. Quantile-bound sensitivity is distinct
+from the variable-specific Route-D method choice.
+
+| Evidence | File |
+| --- | --- |
+| 17-model distribution diagnostic | `results/audits/qm_distribution_diagnostics_17models_summary.txt` |
+| Per-model/variable recommendations | `results/audits/qm_model_variable_recommendations_17models.csv` |
+
+## 4. Results and temporal analysis
+
+**23 core B/D analysis figures:** 9 paper-baseline Route B, 9 optimized Route D,
+and 5 method-comparison B/D figures.
+
+- **Paper baseline (`results/figures/paper_baseline/`):** `Fig02`–`Fig10`
+  (route B) — climate factors, PV potential (annual/period-maps/gridwise change),
+  wind power density (annual/period-maps/gridwise change), and seasonal/monthly
+  complementarity.
+- **Optimized route (`results/figures/optimized_route/`):** `Fig02`–`Fig10`
+  (route D) — the same nine layouts drawn from the optimized method, with
+  colorbar/y-limits shared with the paper-baseline figures (joint B+D scales).
+- **Method comparison (`results/figures/method_comparison/`):** `Opt01`–`Opt04` —
+  annual energy B-vs-D, PV/WPD period relative difference (D−B), national change
+  (definition 2), and late-century complementarity ρ (D−B).
+
+Key summary tables live in `results/tables/` (cross-model `combined_*.csv`) and
+the final-analysis products in `results/figure_data/final_analysis/`.
+
+### Selected results
+
+Four representative figures from the core set of 23:
+
+![PV potential map](results/figures/paper_baseline/Fig03_pvpot_annual_route_B.png)
+
+*Baseline Route B: annual mean photovoltaic power potential over China.*
+
+![Wind power density map](results/figures/paper_baseline/Fig06_wpd_annual_route_B.png)
+
+*Baseline Route B: annual mean wind power density over China.*
+
+![Seasonal wind-solar complementarity](results/figures/paper_baseline/Fig09_seasonal_complementarity_route_B.png)
+
+*Baseline Route B: seasonal wind-solar complementarity over China.*
+
+![Annual energy, Route D vs. Route B](results/figures/method_comparison/Opt01_annual_energy_B_vs_D.png)
+
+*Annual PV potential and wind power density under routes B and D. Lines show the equal-weight 17-model ensemble mean; shaded bands show the inter-model P10–P90 range.*
+
+## 5. Paper reproduction comparison
+
+A read-only Route B (`paper_qm`) comparison against the study's published
+quantitative and qualitative anchors. Route B reproduces the paper's large-scale
+spatial patterns, scenario ordering, and major change directions. Quantitative
+comparison is limited to the paper values whose definitions map directly onto this
+pipeline's outputs (PVpot year-2100 endpoints, selected PVpot trend rates, and the
+Table 4 Mann–Kendall statistics).
+
+The formal (geodesic grid-cell intersection-area-weighted) Route B PVpot at year
+2100 versus the paper's approximate endpoints:
+
+| scenario | Route B PVpot (W m-2) | Paper (approximate) |
+| --- | --- | --- |
+| SSP1-2.6 | 204.55 | ~196 |
+| SSP2-4.5 | 201.83 | ~193 |
+| SSP5-8.5 | 197.94 | ~188 |
+
+A rectangular-domain sensitivity run explains approximately 72–84% of the
+absolute endpoint difference — consistent with, but not proving, a difference in
+spatial aggregation domains. The formal results continue to use geodesic
+intersection-area weighting; no undocumented interpolation, gap-filling, or
+parameter tuning is applied to move results toward the paper, and no pixel-perfect
+reproduction is claimed.
+
+Two additional figures are produced (`FigRC01`–`FigRC02`, **not** part of the core
+23):
+
+![Route B annual series with paper endpoint markers](results/figures/reproduction_comparison/FigRC01_route_B_annual_series_with_paper_endpoint_markers.png)
+
+![Route B spatial pattern with qualitative anchors](results/figures/reproduction_comparison/FigRC02_route_B_spatial_pattern_with_qualitative_anchors.png)
+
+**Full comparison details** (evidence classification, definitional notes,
+Mann–Kendall/OLS trends, Table-5 candidates, approximate anchors, spatial-domain
+sensitivity) are in
+[`docs/paper_reproduction_comparison.md`](docs/paper_reproduction_comparison.md).
+
+## 6. Reproducibility
 
 All production scripts read their paths from `config/project_paths.json` via
 `scripts/common/project_paths.py` (no absolute paths, no hard-coded locations).
@@ -137,23 +216,22 @@ python scripts/08_reproduction_comparison/compare_with_paper.py
 Stage 8 runs in its default (formal) mode using only the small, tracked
 final-analysis products, so a fresh clone rebuilds the three comparison CSVs,
 `docs/paper_reproduction_comparison.md`, and the two FigRC figures. Add
-`--include-native-grid-diagnostics` to also compute the optional Table-5
-candidate aggregations and the sfcWind year-2100 area-weighting diagnostic;
-that flag requires the full `data/processed/energy_metrics/` tree, and its
-output is **not** part of the formal reproduction score.
+`--include-native-grid-diagnostics` to also compute the optional Table-5 candidate
+aggregations and the sfcWind year-2100 area-weighting diagnostic; that flag
+requires the full `data/processed/energy_metrics/` tree, and its output is **not**
+part of the formal reproduction score.
 
 The China analysis boundary (`china_shapefile`) is generated by
-`scripts/02_data_preparation/make_china_boundary_only.py` from public
-Natural Earth 10m admin-0 data (the `CHN`/`TWN`/`HKG`/`MAC` records, unioned),
-and written to the `china_shapefile` path declared in
-`config/project_paths.json`. Because the boundary lives under the gitignored
-`data/` directory, a fresh clone must run that command once before Stage 2/3.
-This is a scientific analysis boundary, **not** an authoritative administrative
-or political boundary.
+`scripts/02_data_preparation/make_china_boundary_only.py` from public Natural
+Earth 10m admin-0 data (the `CHN`/`TWN`/`HKG`/`MAC` records, unioned), and written
+to the `china_shapefile` path declared in `config/project_paths.json`. Because the
+boundary lives under the gitignored `data/` directory, a fresh clone must run that
+command once before Stage 2/3. This is a scientific analysis boundary, **not** an
+authoritative administrative or political boundary.
 
-Stage 1–2 require access to the CMIP6 (CEDA) and ERA5 (CDS) archives and are
-run before Stage 3. This is a **staged** pipeline (not a single end-to-end
-command); the download order is:
+Stage 1–2 require access to the CMIP6 (CEDA) and ERA5 (CDS) archives and are run
+before Stage 3. This is a **staged** pipeline (not a single end-to-end command);
+the download order is:
 
 1. Build/prepare the CEDA manifest (`build_cmip6_clean_manifest.py`).
 2. Download the 16 CEDA models (`download_cmip6_16models_v2.py`).
@@ -168,7 +246,7 @@ Useful options on the main scripts: `--models` / `--scenarios` (run a subset),
 `--expected-model-count` / `--expected-models` (assert the model count),
 `--hub-height`, `--lower`/`--upper` (quantile bounds), `--force` (recompute).
 
-## 7. Dry-run mode
+### Dry-run mode
 
 Every production script supports `--dry-run`, which validates every input path,
 grid, calendar, unit, dimension, and column **without writing any output**:
@@ -181,10 +259,9 @@ python scripts/05_figure_data/build_final_analysis_products.py --dry-run
 python scripts/06_plotting/plot_final_figures.py --dry-run
 ```
 
-Run a dry-run first to confirm the environment and inputs before any production
-run.
+Run a dry-run first to confirm the environment and inputs before any production run.
 
-## 8. Data availability
+## 7. Data availability
 
 The raw and intermediate data are **not** distributed with this repository
 (≈73 GiB total). They must be re-obtained from the sources and placed in the
@@ -201,85 +278,7 @@ The small, regenerable **results** (figures, summary tables, final-analysis
 products, audit summaries) are included — see
 `docs/public_release_file_manifest.md` for the exact allow/deny list.
 
-## 9. Main results
-
-**23 core B/D analysis figures:** 9 paper-baseline Route B, 9 optimized Route D, and 5 method-comparison B/D figures.
-
-- **Paper baseline (`results/figures/paper_baseline/`):** `Fig02`–`Fig10`
-  (route B) — climate factors, PV potential (annual/period-maps/gridwise change),
-  wind power density (annual/period-maps/gridwise change), and seasonal/monthly
-  complementarity.
-- **Optimized route (`results/figures/optimized_route/`):** `Fig02`–`Fig10`
-  (route D) — the same nine layouts drawn from the optimized method, with
-  colorbar/y-limits shared with the paper-baseline figures (joint B+D scales).
-- **Method comparison (`results/figures/method_comparison/`):** `Opt01`–`Opt04` —
-  annual energy B-vs-D, PV/WPD period relative difference (D−B), national change
-  (definition 2), and late-century complementarity ρ (D−B).
-
-Key summary tables live in `results/tables/` (cross-model `combined_*.csv`) and
-the final-analysis products in `results/figure_data/final_analysis/`.
-
-### Paper reproduction comparison (2 additional figures)
-
-A read-only Route B (`paper_qm`) comparison against the study's published
-quantitative and qualitative anchors — see
-[`docs/paper_reproduction_comparison.md`](docs/paper_reproduction_comparison.md).
-These two figures are **additional** and are **not** part of the 23 core figures.
-
-![Route B annual series with paper endpoint markers](results/figures/reproduction_comparison/FigRC01_route_B_annual_series_with_paper_endpoint_markers.png)
-
-![Route B spatial pattern with qualitative anchors](results/figures/reproduction_comparison/FigRC02_route_B_spatial_pattern_with_qualitative_anchors.png)
-
-### Reproduction agreement and remaining discrepancy
-
-Route B reproduces the paper's large-scale spatial patterns, scenario ordering,
-and major change directions. Quantitative comparison is limited to the paper
-values whose definitions map directly onto this pipeline's outputs: the PVpot
-year-2100 endpoints, selected PVpot trend rates, and the Table 4 Mann–Kendall
-statistics.
-
-The formal (geodesic grid-cell intersection-area-weighted) Route B PVpot at
-year 2100 is:
-
-| scenario | Route B PVpot (W m-2) | Paper (approximate) |
-| --- | --- | --- |
-| SSP1-2.6 | 204.55 | ~196 |
-| SSP2-4.5 | 201.83 | ~193 |
-| SSP5-8.5 | 197.94 | ~188 |
-
-A rectangular-domain sensitivity run explains approximately 72–84% of the
-absolute endpoint difference. This is consistent with, but does not prove, a
-difference in spatial aggregation domains.
-
-The formal results continue to use geodesic grid-cell intersection-area
-weighting; no undocumented interpolation, gap-filling, or parameter tuning is
-applied to move results toward the paper, and no pixel-perfect reproduction is
-claimed. The paper does not fully document all of its spatial-aggregation,
-regridding, and mapping steps.
-
-See [`docs/paper_reproduction_comparison.md`](docs/paper_reproduction_comparison.md).
-
-### Selected results
-
-Four representative figures from the core set of 23:
-
-![PV potential map](results/figures/paper_baseline/Fig03_pvpot_annual_route_B.png)
-
-*Baseline Route B: annual mean photovoltaic power potential over China.*
-
-![Wind power density map](results/figures/paper_baseline/Fig06_wpd_annual_route_B.png)
-
-*Baseline Route B: annual mean wind power density over China.*
-
-![Seasonal wind-solar complementarity](results/figures/paper_baseline/Fig09_seasonal_complementarity_route_B.png)
-
-*Baseline Route B: seasonal wind-solar complementarity over China.*
-
-![Annual energy, Route D vs. Route B](results/figures/method_comparison/Opt01_annual_energy_B_vs_D.png)
-
-*Annual PV potential and wind power density under routes B and D. Lines show the equal-weight 17-model ensemble mean; shaded bands show the inter-model P10–P90 range.*
-
-## 10. Current validation status
+## 8. Validation status and known warnings
 
 | Check | Result |
 |---|---|
@@ -295,24 +294,16 @@ Four representative figures from the core set of 23:
 The full audit report is a local-only document (not published; see
 `docs/public_release_file_manifest.md`).
 
-## 11. Known scientific warnings
-
 The bias-correction audit reports **45 warnings** (all WARNING, none FAILURE),
 pre-existing and unchanged:
 
-- **42 × `tail_trigger_percent` on `tas`** — future values outside the
-  historical Q02–Q98 calibration range (expected in a warming scenario).
+- **42 × `tail_trigger_percent` on `tas`** — future values outside the historical
+  Q02–Q98 calibration range (expected in a warming scenario).
 - **3 × `physical_range` on `rsds`**.
 
 These flag conditions for review but do not invalidate the archive.
 
-## 12. cfgrib / ecCodes (GRIB only)
-
-`cfgrib` is needed only to read the raw ERA5 `.grib` files; it additionally
-requires the **ecCodes** C library. All NetCDF-based production is unaffected.
-See `docs/environment_notes.md`.
-
-## 13. Citation & data sources
+## 9. Citation and data sources
 
 If you use this software or its results, please cite it via the
 [`CITATION.cff`](CITATION.cff) file (author: **X-X-5**), and also cite the
@@ -320,7 +311,7 @@ underlying study:
 
 > Fan, Y., Zhong, P.-A., Zhu, F., Mo, R., Wang, H., Wei, J., Zeng, Y.,
 > Wang, B., & Qian, X. (2025). Assessing the potential and complementary
-> characteristics of China’s solar and wind energy under climate change.
+> characteristics of China's solar and wind energy under climate change.
 > *Renewable Energy, 249*, 123213.
 > https://doi.org/10.1016/j.renene.2025.123213
 
@@ -333,16 +324,19 @@ Data providers:
   (ESGF). 16 of the 17 models were obtained from the CEDA Archive
   (data.ceda.ac.uk); **CAS-ESM2-0** was obtained from the Oak Ridge National
   Laboratory (ORNL) ESGF/THREDDS node.
-- **ERA5** reanalysis — Copernicus Climate Data Store (CDS) / ECMWF, regridded
-  to each GCM's native grid for bias correction.
+- **ERA5** reanalysis — Copernicus Climate Data Store (CDS) / ECMWF, regridded to
+  each GCM's native grid for bias correction.
 
-## 14. Limitations
+`cfgrib`/ecCodes is needed only to read the raw ERA5 `.grib` files; all
+NetCDF-based production is unaffected (see `docs/environment_notes.md`).
+
+## 10. Limitations
 
 - This is a **research pipeline and result archive**, not a packaged library.
 - The exact figures depend on the specific model ensemble, calibration window,
   and aggregation choices; results should be interpreted as a multimodel
   assessment, **not** a strictly pixel-perfect reproduction of any single run.
-- Raw data redistribution is out of scope (see §8).
+- Raw data redistribution is out of scope (see Data availability).
 - The quantitative boundary is a scientific mask (Natural Earth 10m, `CHN` +
   `TWN` + `HKG` + `MAC`), not an official standard map; figures intended for
   official publication should use the standard-map service with an approval
@@ -365,7 +359,7 @@ Data providers:
   quantitative analysis boundary itself remains 15–54°N. All 17 models now cover
   ≥99.9999% of the boundary.
 
-## 15. License
+## 11. License
 
 This project is released under the **MIT License** — see [`LICENSE`](LICENSE).
 
